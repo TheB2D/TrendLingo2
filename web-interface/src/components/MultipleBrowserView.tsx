@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getBrowserService } from '@/lib/browser-use-service';
-import { ExternalLink, RefreshCw, Monitor, Clock, CheckCircle, XCircle, Grid, Maximize2 } from 'lucide-react';
+import { ExternalLink, RefreshCw, Monitor, Clock, CheckCircle, XCircle, Grid, Maximize2, Brain, Bug } from 'lucide-react';
 import { BrowserSession } from '@/types/browser-use';
+import { AgentThoughts } from './AgentThoughts';
+import { DebugSteps } from './DebugSteps';
 
 const browserService = getBrowserService();
 
@@ -13,9 +15,11 @@ interface BrowserPanelProps {
   strandId: string;
   isExpanded?: boolean;
   onExpand?: () => void;
+  showReasoning?: boolean;
+  onToggleReasoning?: () => void;
 }
 
-function BrowserPanel({ session, strandId, isExpanded = false, onExpand }: BrowserPanelProps) {
+function BrowserPanel({ session, strandId, isExpanded = false, onExpand, showReasoning = false, onToggleReasoning }: BrowserPanelProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { updateStrandSession } = useAppStore();
 
@@ -140,6 +144,20 @@ function BrowserPanel({ session, strandId, isExpanded = false, onExpand }: Brows
               </a>
             )}
 
+            {onToggleReasoning && (
+              <button
+                onClick={onToggleReasoning}
+                className={`p-1 rounded transition-colors ${
+                  showReasoning 
+                    ? 'text-purple-600 hover:text-purple-700 bg-purple-100' 
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+                title={showReasoning ? 'Hide Reasoning' : 'Show Reasoning'}
+              >
+                <Brain className="w-3 h-3" />
+              </button>
+            )}
+
             {onExpand && (
               <button
                 onClick={onExpand}
@@ -154,25 +172,81 @@ function BrowserPanel({ session, strandId, isExpanded = false, onExpand }: Brows
       </div>
 
       {/* Browser Content */}
-      <div className="flex-1 relative overflow-hidden">
-        {session.liveUrl ? (
-          <iframe
-            src={session.liveUrl}
-            className="w-full h-full border-0 absolute inset-0"
-            title={`Live Browser View - ${strandId}`}
-            allow="fullscreen"
-            frameBorder="0"
-            scrolling="auto"
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full bg-gray-50">
-            <div className="text-center">
-              <div className="animate-pulse">
-                <Monitor className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-              </div>
-              <p className="text-xs text-gray-600 font-medium">Loading...</p>
-              <p className="text-xs text-gray-500 mt-1">Processing workflow</p>
+      <div className="flex-1 flex relative overflow-hidden">
+        {showReasoning ? (
+          <div className="flex w-full">
+            {/* Browser View - Left Side */}
+            <div className="flex-1 relative">
+              {session.liveUrl ? (
+                <iframe
+                  src={session.liveUrl}
+                  className="w-full h-full border-0 absolute inset-0"
+                  title={`Live Browser View - ${strandId}`}
+                  allow="fullscreen"
+                  frameBorder="0"
+                  scrolling="auto"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full bg-gray-50">
+                  <div className="text-center">
+                    <div className="animate-pulse">
+                      <Monitor className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                    </div>
+                    <p className="text-xs text-gray-600 font-medium">Loading...</p>
+                    <p className="text-xs text-gray-500 mt-1">Processing workflow</p>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Reasoning View - Right Side */}
+            <div className="w-80 border-l border-gray-200 bg-white flex flex-col">
+              <div className="p-2 border-b border-gray-200 bg-purple-50">
+                <div className="flex items-center gap-1">
+                  <Brain className="w-3 h-3 text-purple-600" />
+                  <span className="text-xs font-medium text-gray-700">Reasoning</span>
+                </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto">
+                {session?.tasks && session.tasks.length > 0 && (
+                  <div className="h-full">
+                    <div className="p-2 border-b border-gray-100">
+                      <DebugSteps />
+                    </div>
+                    <div className="flex-1">
+                      <AgentThoughts 
+                        steps={session.tasks[session.tasks.length - 1]?.steps || []} 
+                        isActive={session.status === 'active'} 
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="w-full relative">
+            {session.liveUrl ? (
+              <iframe
+                src={session.liveUrl}
+                className="w-full h-full border-0 absolute inset-0"
+                title={`Live Browser View - ${strandId}`}
+                allow="fullscreen"
+                frameBorder="0"
+                scrolling="auto"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full bg-gray-50">
+                <div className="text-center">
+                  <div className="animate-pulse">
+                    <Monitor className="w-8 h-8 mx-auto text-gray-400 mb-2" />
+                  </div>
+                  <p className="text-xs text-gray-600 font-medium">Loading...</p>
+                  <p className="text-xs text-gray-500 mt-1">Processing workflow</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -202,6 +276,25 @@ export function MultipleBrowserView() {
     toggleMultipleBrowsers 
   } = useAppStore();
   const [expandedPanel, setExpandedPanel] = useState<string | null>(null);
+  const [reasoningStates, setReasoningStates] = useState<{[strandId: string]: boolean}>({});
+
+  const toggleStrandReasoning = (strandId: string) => {
+    setReasoningStates(prev => ({
+      ...prev,
+      [strandId]: !prev[strandId]
+    }));
+  };
+
+  const toggleAllReasoning = () => {
+    const anyReasoningActive = Object.values(reasoningStates).some(Boolean);
+    const newState: {[strandId: string]: boolean} = {};
+    displayStrands.forEach(strand => {
+      newState[strand.id] = !anyReasoningActive;
+    });
+    setReasoningStates(newState);
+  };
+
+  const hasActiveReasoning = Object.values(reasoningStates).some(Boolean);
 
   // Get up to 4 strands for display
   const displayStrands = currentStrands.slice(0, 4);
@@ -252,12 +345,25 @@ export function MultipleBrowserView() {
               <Monitor className="w-5 h-5" />
               Expanded View - {expandedPanel}
             </h3>
-            <button
-              onClick={() => setExpandedPanel(null)}
-              className="px-3 py-1.5 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg text-sm font-medium transition-colors"
-            >
-              Back to Grid
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => toggleStrandReasoning(expandedPanel)}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                  reasoningStates[expandedPanel]
+                    ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Brain className="w-3 h-3" />
+                Reasoning
+              </button>
+              <button
+                onClick={() => setExpandedPanel(null)}
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg text-sm font-medium transition-colors"
+              >
+                Back to Grid
+              </button>
+            </div>
           </div>
         </div>
 
@@ -267,6 +373,8 @@ export function MultipleBrowserView() {
             session={expandedSession} 
             strandId={expandedPanel}
             isExpanded={true}
+            showReasoning={reasoningStates[expandedPanel] || false}
+            onToggleReasoning={() => toggleStrandReasoning(expandedPanel)}
           />
         </div>
       </div>
@@ -287,12 +395,25 @@ export function MultipleBrowserView() {
               {strandCount} active strand{strandCount !== 1 ? 's' : ''} • Up to 4 screens supported
             </p>
           </div>
-          <button
-            onClick={toggleMultipleBrowsers}
-            className="px-3 py-1.5 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg text-sm font-medium transition-colors"
-          >
-            Hide Grid
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleAllReasoning}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                hasActiveReasoning
+                  ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Brain className="w-3 h-3" />
+              {hasActiveReasoning ? 'Hide All' : 'Show All'} Reasoning
+            </button>
+            <button
+              onClick={toggleMultipleBrowsers}
+              className="px-3 py-1.5 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg text-sm font-medium transition-colors"
+            >
+              Hide Grid
+            </button>
+          </div>
         </div>
       </div>
 
@@ -307,6 +428,8 @@ export function MultipleBrowserView() {
                   session={strandSession?.session || null} 
                   strandId={strand.id}
                   onExpand={() => setExpandedPanel(strand.id)}
+                  showReasoning={reasoningStates[strand.id] || false}
+                  onToggleReasoning={() => toggleStrandReasoning(strand.id)}
                 />
               </div>
             );
