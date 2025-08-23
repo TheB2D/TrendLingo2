@@ -49,7 +49,7 @@ export function LiveBrowserView() {
 
   useEffect(() => {
     if (currentSession?.status === 'active') {
-      const interval = setInterval(refreshSession, 3000); // Refresh every 3 seconds for more real-time feel
+      const interval = setInterval(refreshSession, 1500); // Refresh every 1.5 seconds for more detailed real-time updates
       return () => clearInterval(interval);
     }
   }, [currentSession?.id, currentSession?.status]);
