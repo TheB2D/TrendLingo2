@@ -6,6 +6,7 @@ A modern web application that provides a chat-based interface for browser automa
 
 - 🤖 **AI Chat Interface** - Natural language commands for browser automation
 - 📺 **Live Browser View** - Watch automation tasks in real-time
+- 🧠 **Real-time Agent Thoughts** - See the agent's reasoning, observations, and plans as they happen
 - 📊 **Session Management** - Track and monitor browser sessions
 - 🎨 **Modern UI** - Built with Next.js, TypeScript, and Tailwind CSS
 - 🔄 **Real-time Updates** - Live session status and progress tracking
@@ -47,6 +48,17 @@ A modern web application that provides a chat-based interface for browser automa
 - Or use the "Show Live Browser" button in the header
 - The right panel will display the live browser view
 - Click the external link icon to open in a new window
+
+### Agent Thoughts (Real-time AI Reasoning)
+
+- **Toggle Agent Thoughts**: Click the brain icon 🧠 in the live browser header
+- **Real-time Streaming**: See the agent's thoughts update as it works:
+  - 👁️ **Observations**: What the agent sees on the page
+  - ✅ **Evaluations**: How it assesses its previous actions
+  - 🎯 **Next Goals**: What it plans to do next
+  - ⚡ **Actions**: Specific commands it will execute
+- **Step-by-Step Breakdown**: Each automation step shows detailed reasoning
+- **Screenshots**: Visual confirmation of each step (when available)
 
 ### Session Management
 

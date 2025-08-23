@@ -22,6 +22,17 @@ export interface BrowserTask {
   doneOutput: string | null;
   browserUseVersion: string | null;
   isSuccess: boolean | null;
+  steps?: AgentStep[];
+}
+
+export interface AgentStep {
+  number: number;
+  memory: string;
+  evaluationPreviousGoal: string;
+  nextGoal: string;
+  url: string;
+  screenshotUrl: string | null;
+  actions: string[];
 }
 
 export interface ChatMessage {

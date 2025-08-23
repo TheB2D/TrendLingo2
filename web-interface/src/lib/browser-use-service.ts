@@ -49,12 +49,20 @@ export class BrowserUseService {
     onProgress: (data: any) => void
   ): Promise<void> {
     try {
+      console.log('Starting stream for task:', taskId);
       const stream = this.client.tasks.stream({
         taskId: taskId,
       });
       
       for await (const chunk of stream) {
+        console.log('Stream chunk received:', chunk);
         onProgress(chunk);
+        
+        // Stop streaming when task is finished
+        if (chunk.data?.status === 'finished' || chunk.data?.status === 'stopped') {
+          console.log('Task completed, stopping stream');
+          break;
+        }
       }
     } catch (error) {
       console.error('Failed to stream task progress:', error);

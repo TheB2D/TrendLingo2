@@ -56,6 +56,31 @@ export function ChatInterface() {
       setCurrentSession(session);
       addSession(session);
 
+      // Start streaming the task progress to get real-time steps
+      setTimeout(async () => {
+        try {
+          await browserService.streamTaskProgress(task.id, (streamData) => {
+            console.log('Stream data received:', streamData);
+            
+            // Update session with new step data if available
+            if (streamData.data && streamData.data.steps) {
+              const updatedSession = {
+                ...session,
+                tasks: [{
+                  ...task,
+                  steps: streamData.data.steps,
+                  status: streamData.data.status || task.status
+                }]
+              };
+              setCurrentSession(updatedSession);
+              addSession(updatedSession);
+            }
+          });
+        } catch (error) {
+          console.error('Streaming failed:', error);
+        }
+      }, 1000); // Start streaming after 1 second
+
       // Update assistant message with session info
       addMessage({
         role: 'assistant',
