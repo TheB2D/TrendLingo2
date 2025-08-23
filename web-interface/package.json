@@ -10,12 +10,18 @@
   },
   "dependencies": {
     "@google/genai": "^1.15.0",
+    "@google/generative-ai": "^0.24.1",
     "browser-use-sdk": "^1.2.0",
+    "compromise": "^14.14.4",
+    "d3-force": "^3.0.0",
     "dotenv": "^17.2.1",
     "lucide-react": "^0.541.0",
+    "natural": "^8.1.0",
+    "neo4j-driver": "^5.28.1",
     "next": "15.5.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-force-graph-2d": "^1.28.0",
     "reactflow": "^11.11.4",
     "zustand": "^5.0.8"
   },

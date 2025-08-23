@@ -7,6 +7,7 @@ import { MultipleBrowserView } from './MultipleBrowserView';
 import { WorkflowInterface } from './WorkflowInterface';
 import { AgentThoughts } from './AgentThoughts';
 import { DebugSteps } from './DebugSteps';
+import { PooledReason } from './PooledReason';
 import { useAppStore } from '@/lib/store';
 import { GoogleGenAI } from '@google/genai';
 import { 
@@ -19,12 +20,15 @@ import {
   GitBranch,
   Brain,
   Sparkles,
-  Grid
+  Grid,
+  Network
 } from 'lucide-react';
 
 export function Layout() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(640);
   const [showReasoning, setShowReasoning] = useState(false);
+  const [showPooledReason, setShowPooledReason] = useState(false);
+  const [reasoningTab, setReasoningTab] = useState<'session' | 'pooled'>('session');
 
   // Initialize to 50/50 split after hydration
   useEffect(() => {
@@ -310,19 +314,42 @@ User request: ${userInput}`;
               </div>
             </button>
 
+            {/* Pooled Reason is always available */}
+            <button
+              onClick={() => {
+                setShowPooledReason(!showPooledReason);
+                setShowReasoning(false);
+                setReasoningTab('pooled');
+              }}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                showPooledReason && reasoningTab === 'pooled'
+                  ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Network className="w-4 h-4" />
+              <span className="hidden sm:inline">
+                {showPooledReason && reasoningTab === 'pooled' ? 'Hide' : 'Show'} Pooled Reason
+              </span>
+            </button>
+
             {currentSession && (
               <>
                 <button
-                  onClick={() => setShowReasoning(!showReasoning)}
+                  onClick={() => {
+                    setShowReasoning(!showReasoning);
+                    setShowPooledReason(false);
+                    setReasoningTab('session');
+                  }}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    showReasoning 
+                    showReasoning && reasoningTab === 'session'
                       ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   <Brain className="w-4 h-4" />
                   <span className="hidden sm:inline">
-                    {showReasoning ? 'Hide' : 'Show'} Reasoning
+                    {showReasoning && reasoningTab === 'session' ? 'Hide' : 'Show'} Reasoning
                   </span>
                 </button>
 
@@ -372,34 +399,91 @@ User request: ${userInput}`;
             maxWidth: `${leftPanelWidth}px`
           }}
         >
-          {showReasoning && currentSession ? (
+          {(showReasoning || showPooledReason) ? (
             <div className="h-full flex flex-col bg-white">
               {/* Reasoning Header */}
-              <div className="p-4 border-b border-gray-200 bg-purple-50">
+              <div className={`p-4 border-b border-gray-200 ${
+                reasoningTab === 'pooled' ? 'bg-orange-50' : 'bg-purple-50'
+              }`}>
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                    <Brain className="w-5 h-5 text-purple-600" />
-                    Agent Reasoning & Thoughts
+                    {reasoningTab === 'pooled' ? (
+                      <>
+                        <Network className="w-5 h-5 text-orange-600" />
+                        Pooled Reasoning Knowledge Graph
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="w-5 h-5 text-purple-600" />
+                        Agent Reasoning & Thoughts
+                      </>
+                    )}
                   </h3>
-                  <button
-                    onClick={() => setShowReasoning(false)}
-                    className="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Back to Chat
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Tab switcher */}
+                    <div className="flex bg-gray-100 rounded-lg p-1">
+                      <button
+                        onClick={() => {
+                          setReasoningTab('session');
+                          setShowReasoning(true);
+                          setShowPooledReason(false);
+                        }}
+                        className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                          reasoningTab === 'session'
+                            ? 'bg-white text-purple-700 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-800'
+                        }`}
+                      >
+                        Session
+                      </button>
+                      <button
+                        onClick={() => {
+                          setReasoningTab('pooled');
+                          setShowReasoning(false);
+                          setShowPooledReason(true);
+                        }}
+                        className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                          reasoningTab === 'pooled'
+                            ? 'bg-white text-orange-700 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-800'
+                        }`}
+                      >
+                        Pooled
+                      </button>
+                    </div>
+                    
+                    <button
+                      onClick={() => {
+                        setShowReasoning(false);
+                        setShowPooledReason(false);
+                      }}
+                      className="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Back to Chat
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm text-gray-600 mt-1">
-                  Real-time analysis of the agent's decision-making process
+                  {reasoningTab === 'pooled' 
+                    ? 'Cross-session knowledge graph of reasoning fragments and relationships'
+                    : 'Real-time analysis of the agent\'s decision-making process'
+                  }
                 </p>
               </div>
               
               {/* Reasoning Content */}
-              <div className="flex-1 overflow-y-auto">
-                <DebugSteps />
-                <AgentThoughts 
-                  steps={currentSession.tasks?.[currentSession.tasks.length - 1]?.steps || []} 
-                  isActive={currentSession.status === 'active'} 
-                />
+              <div className="flex-1 overflow-hidden">
+                {reasoningTab === 'pooled' ? (
+                  <PooledReason />
+                ) : (
+                  <div className="h-full overflow-y-auto">
+                    <DebugSteps />
+                    <AgentThoughts 
+                      steps={currentSession?.tasks?.[currentSession.tasks.length - 1]?.steps || []} 
+                      isActive={currentSession?.status === 'active'} 
+                    />
+                  </div>
+                )}
               </div>
             </div>
           ) : (

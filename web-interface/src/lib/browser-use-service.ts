@@ -1,13 +1,28 @@
 import BrowserUse from "browser-use-sdk";
 import { BrowserSession, BrowserTask } from "@/types/browser-use";
+import { knowledgeGraphClient } from "./knowledge-graph-client";
 
 export class BrowserUseService {
   private client: BrowserUse;
+  private isKnowledgeGraphInitialized: boolean = false;
 
   constructor() {
     this.client = new BrowserUse({
       apiKey: process.env.NEXT_PUBLIC_BROWSER_USE_API_KEY || "",
     });
+    this.initializeKnowledgeGraph();
+  }
+
+  private async initializeKnowledgeGraph(): Promise<void> {
+    try {
+      const success = await knowledgeGraphClient.initialize();
+      this.isKnowledgeGraphInitialized = success;
+      console.log('Knowledge graph service initialized:', success);
+    } catch (error) {
+      console.error('Failed to initialize knowledge graph service:', error);
+      // Don't fail the service if knowledge graph fails
+      this.isKnowledgeGraphInitialized = false;
+    }
   }
 
   async createTaskAndGetSession(taskDescription: string): Promise<{
@@ -58,6 +73,25 @@ export class BrowserUseService {
         console.log('Chunk data steps:', chunk.data?.steps);
         console.log('Chunk data steps type:', typeof chunk.data?.steps);
         console.log('Chunk data steps array check:', Array.isArray(chunk.data?.steps));
+        
+        // Process steps for knowledge graph if available
+        if (this.isKnowledgeGraphInitialized && 
+            chunk.data?.steps && 
+            Array.isArray(chunk.data.steps) &&
+            chunk.data.sessionId) {
+          try {
+            await knowledgeGraphClient.processAgentSteps(
+              chunk.data.steps,
+              chunk.data.sessionId,
+              taskId
+            );
+            console.log('Processed steps for knowledge graph');
+          } catch (error) {
+            console.error('Failed to process steps for knowledge graph:', error);
+            // Don't fail the stream - knowledge graph is optional
+          }
+        }
+        
         onProgress(chunk);
         
         // Stop streaming when task is finished
