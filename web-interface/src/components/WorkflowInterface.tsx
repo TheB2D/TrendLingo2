@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { 
   ReactFlow, 
   Node, 
@@ -27,8 +27,6 @@ const nodeTypes = {
 const browserService = getBrowserService();
 
 export function WorkflowInterface() {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [isRunning, setIsRunning] = useState(false);
   
   const { 
@@ -36,20 +34,36 @@ export function WorkflowInterface() {
     setLoading, 
     setCurrentSession, 
     addSession,
-    updateSession 
+    updateSession,
+    workflowNodes,
+    workflowEdges,
+    updateWorkflow
   } = useAppStore();
 
+  const [nodes, setNodes, onNodesChange] = useNodesState(workflowNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(workflowEdges);
+
+  // Only sync from store to local state when store changes externally (from AI)
+  useEffect(() => {
+    setNodes(workflowNodes);
+    setEdges(workflowEdges);
+  }, [workflowNodes, workflowEdges, setNodes, setEdges]);
+
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge({
-      ...params,
-      animated: true,
-      style: { stroke: '#3b82f6', strokeWidth: 2 },
-      markerEnd: {
-        type: 'arrowclosed',
-        color: '#3b82f6',
-      }
-    }, eds)),
-    [setEdges]
+    (params: Connection) => {
+      const newEdges = addEdge({
+        ...params,
+        animated: true,
+        style: { stroke: '#3b82f6', strokeWidth: 2 },
+        markerEnd: {
+          type: 'arrowclosed',
+          color: '#3b82f6',
+        }
+      }, edges);
+      setEdges(newEdges);
+      updateWorkflow(nodes, newEdges);
+    },
+    [setEdges, edges, nodes, updateWorkflow]
   );
 
   const getNextNodeNumber = useCallback(() => {
@@ -69,18 +83,20 @@ export function WorkflowInterface() {
         text: '',
         nodeNumber: getNextNodeNumber(),
         onTextChange: (nodeId: string, newText: string) => {
-          setNodes((nds) =>
-            nds.map((node) =>
-              node.id === nodeId
-                ? { ...node, data: { ...node.data, text: newText } }
-                : node
-            )
+          const updatedNodes = nodes.map((node) =>
+            node.id === nodeId
+              ? { ...node, data: { ...node.data, text: newText } }
+              : node
           );
+          setNodes(updatedNodes);
+          updateWorkflow(updatedNodes, edges);
         }
       },
     };
-    setNodes((nds) => nds.concat(newNode));
-  }, [setNodes, getNextNodeNumber]);
+    const newNodes = [...nodes, newNode];
+    setNodes(newNodes);
+    updateWorkflow(newNodes, edges);
+  }, [setNodes, getNextNodeNumber, nodes, edges, updateWorkflow]);
 
   const generatePromptFromNodes = useCallback(() => {
     const nodeMap = new Map(nodes.map(node => [node.id, node]));

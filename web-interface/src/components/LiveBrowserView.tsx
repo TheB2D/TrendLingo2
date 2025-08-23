@@ -148,13 +148,15 @@ export function LiveBrowserView() {
       {/* Main Content Area */}
       <div className="flex-1 flex min-h-0 relative">
         {/* Browser View */}
-        <div className="flex-1">
+        <div className="flex-1 relative overflow-hidden">
           {currentSession.liveUrl ? (
             <iframe
               src={currentSession.liveUrl}
-              className="w-full h-full border-0"
+              className="w-full h-full border-0 absolute inset-0"
               title="Live Browser View"
               allow="fullscreen"
+              frameBorder="0"
+              scrolling="no"
             />
           ) : (
             <div className="flex items-center justify-center h-full bg-gray-50">

@@ -34,13 +34,65 @@ export function Layout() {
     clearChat,
     messages,
     isWorkflowMode,
-    toggleWorkflowMode
+    toggleWorkflowMode,
+    workflowNodes,
+    workflowEdges,
+    updateWorkflow
   } = useAppStore();
 
   const handleClearChat = () => {
     if (window.confirm('Are you sure you want to clear the chat?')) {
       clearChat();
     }
+  };
+
+  // Workflow serialization functions
+  const serializeWorkflow = () => {
+    return {
+      nodes: workflowNodes.map(node => ({
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: {
+          text: node.data?.text || '',
+          nodeNumber: node.data?.nodeNumber || 1
+        }
+      })),
+      edges: workflowEdges.map(edge => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target
+      }))
+    };
+  };
+
+  const deserializeWorkflow = (workflowData: any) => {
+    const nodes = workflowData.nodes.map((nodeData: any, index: number) => ({
+      id: nodeData.id || `text-${Date.now()}-${index}`,
+      type: nodeData.type || 'textPrompt',
+      position: nodeData.position || { x: 100 + index * 200, y: 100 + Math.floor(index / 3) * 150 },
+      data: {
+        text: nodeData.data?.text || nodeData.text || '',
+        nodeNumber: nodeData.data?.nodeNumber || index + 1,
+        onTextChange: (nodeId: string, newText: string) => {
+          // This will be handled by WorkflowInterface
+        }
+      }
+    }));
+
+    const edges = (workflowData.edges || []).map((edgeData: any, index: number) => ({
+      id: edgeData.id || `edge-${index}`,
+      source: edgeData.source,
+      target: edgeData.target,
+      animated: true,
+      style: { stroke: '#3b82f6', strokeWidth: 2 },
+      markerEnd: {
+        type: 'arrowclosed',
+        color: '#3b82f6',
+      }
+    }));
+
+    return { nodes, edges };
   };
 
   const handleAIPrompt = async () => {
@@ -52,17 +104,116 @@ export function Layout() {
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY
       });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: aiPrompt,
-        config: {
-          thinkingConfig: {
-            thinkingBudget: 0,
-          },
+      let systemPrompt = '';
+      let userInput = aiPrompt;
+
+      // Check if we're in workflow mode and have existing workflow
+      if (isWorkflowMode) {
+        const hasExistingWorkflow = workflowNodes.length > 0;
+        
+        if (hasExistingWorkflow) {
+          // Editing existing workflow
+          const currentWorkflow = serializeWorkflow();
+          systemPrompt = `You are a workflow editor AI. The user has an existing workflow and wants to modify it.
+
+Current workflow structure:
+${JSON.stringify(currentWorkflow, null, 2)}
+
+Please analyze the user's request and return a JSON object with the modified workflow structure. The JSON should have this exact format:
+{
+  "nodes": [
+    {
+      "id": "text-1", 
+      "type": "textPrompt",
+      "position": {"x": 100, "y": 100},
+      "data": {
+        "text": "Step description here",
+        "nodeNumber": 1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "source": "text-1", 
+      "target": "text-2"
+    }
+  ]
+}
+
+User request: ${userInput}`;
+        } else {
+          // Creating new workflow
+          systemPrompt = `You are a workflow creation AI. The user wants to create a new workflow from their natural language description.
+
+Please analyze the user's request and create a workflow with multiple connected steps. Return a JSON object with this exact format:
+{
+  "nodes": [
+    {
+      "id": "text-1", 
+      "type": "textPrompt",
+      "position": {"x": 100, "y": 100},
+      "data": {
+        "text": "Step description here",
+        "nodeNumber": 1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "source": "text-1", 
+      "target": "text-2"
+    }
+  ]
+}
+
+Break down the user's request into logical steps (2-5 nodes) and connect them in sequence. Each node should contain a clear, actionable instruction for browser automation.
+
+User request: ${userInput}`;
         }
-      });
-      
-      setAiResponse(response.text);
+
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: systemPrompt,
+          config: {
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
+          }
+        });
+
+        try {
+          // Extract JSON from response
+          let jsonStr = response.text.trim();
+          // Remove markdown code blocks if present
+          jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+          
+          const workflowData = JSON.parse(jsonStr);
+          const { nodes, edges } = deserializeWorkflow(workflowData);
+          
+          // Update the workflow in the store
+          updateWorkflow(nodes, edges);
+          
+          setAiResponse(`✅ Workflow ${hasExistingWorkflow ? 'updated' : 'created'} successfully!\n\n${workflowData.nodes.length} nodes and ${workflowData.edges.length} connections generated.`);
+        } catch (parseError) {
+          console.error('Failed to parse workflow JSON:', parseError);
+          setAiResponse(`❌ Error: Failed to parse workflow structure from AI response.\n\nRaw response:\n${response.text}`);
+        }
+      } else {
+        // Regular AI chat mode
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: aiPrompt,
+          config: {
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
+          }
+        });
+        
+        setAiResponse(response.text);
+      }
     } catch (error) {
       console.error('Error calling Gemini API:', error);
       setAiResponse('Error: Failed to get response from Gemini AI');
@@ -340,7 +491,11 @@ export function Layout() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-purple-600" />
-                AI Mode - Ask Gemini
+                {isWorkflowMode ? (
+                  workflowNodes.length > 0 ? 'AI Mode - Edit Workflow' : 'AI Mode - Create Workflow'
+                ) : (
+                  'AI Mode - Ask Gemini'
+                )}
               </h2>
               <button
                 onClick={() => {
@@ -355,14 +510,42 @@ export function Layout() {
             </div>
             
             <div className="space-y-4">
+              {isWorkflowMode && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <GitBranch className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-800">
+                      {workflowNodes.length > 0 ? 'Workflow Edit Mode' : 'Workflow Creation Mode'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-blue-700">
+                    {workflowNodes.length > 0 
+                      ? 'Describe how you want to modify your existing workflow. Gemini will update the nodes and connections.'
+                      : 'Describe the workflow you want to create in natural language. Gemini will break it down into connected steps.'
+                    }
+                  </p>
+                  {workflowNodes.length > 0 && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Current workflow: {workflowNodes.length} nodes, {workflowEdges.length} connections
+                    </p>
+                  )}
+                </div>
+              )}
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Your prompt:
+                  {isWorkflowMode ? 'Describe your workflow:' : 'Your prompt:'}
                 </label>
                 <textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder="Ask Gemini anything..."
+                  placeholder={
+                    isWorkflowMode 
+                      ? workflowNodes.length > 0
+                        ? "How would you like to modify your workflow? (e.g., 'Add a step to take a screenshot', 'Remove the login step', 'Change the search query')"
+                        : "Describe the workflow you want to create... (e.g., 'Create a workflow to search for products on Amazon and compare prices')"
+                      : "Ask Gemini anything..."
+                  }
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                   rows={4}
                 />
@@ -382,7 +565,12 @@ export function Layout() {
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      Ask Gemini
+                      {isWorkflowMode 
+                        ? workflowNodes.length > 0 
+                          ? 'Update Workflow' 
+                          : 'Create Workflow'
+                        : 'Ask Gemini'
+                      }
                     </>
                   )}
                 </button>

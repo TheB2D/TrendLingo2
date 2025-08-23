@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ChatMessage, BrowserSession } from '@/types/browser-use';
+import { Node, Edge } from 'reactflow';
 
 interface AppState {
   // Chat state
@@ -9,6 +10,10 @@ interface AppState {
   // Browser session state
   currentSession: BrowserSession | null;
   activeSessions: BrowserSession[];
+  
+  // Workflow state
+  workflowNodes: Node[];
+  workflowEdges: Edge[];
   
   // UI state
   showLiveBrowser: boolean;
@@ -28,6 +33,9 @@ interface AppState {
   clearMessages: () => void;
   toggleWorkflowMode: () => void;
   setWorkflowMode: (mode: boolean) => void;
+  setWorkflowNodes: (nodes: Node[]) => void;
+  setWorkflowEdges: (edges: Edge[]) => void;
+  updateWorkflow: (nodes: Node[], edges: Edge[]) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -35,6 +43,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   isLoading: false,
   currentSession: null,
   activeSessions: [],
+  workflowNodes: [],
+  workflowEdges: [],
   showLiveBrowser: false,
   selectedSessionId: null,
   isWorkflowMode: false,
@@ -112,4 +122,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
   
   setWorkflowMode: (mode) => set({ isWorkflowMode: mode }),
+  
+  setWorkflowNodes: (nodes) => set({ workflowNodes: nodes }),
+  
+  setWorkflowEdges: (edges) => set({ workflowEdges: edges }),
+  
+  updateWorkflow: (nodes, edges) => set({ 
+    workflowNodes: nodes, 
+    workflowEdges: edges 
+  }),
 }));
