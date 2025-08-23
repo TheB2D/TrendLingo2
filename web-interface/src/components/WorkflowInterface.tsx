@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { 
   ReactFlow, 
   Node, 
-  Edge, 
   addEdge, 
   Connection, 
   useNodesState, 
@@ -26,7 +25,9 @@ const nodeTypes = {
 
 const browserService = getBrowserService();
 
-export function WorkflowInterface() {
+function WorkflowInterfaceInner() {
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [isRunning, setIsRunning] = useState(false);
   
   const { 
@@ -40,30 +41,51 @@ export function WorkflowInterface() {
     updateWorkflow
   } = useAppStore();
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(workflowNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(workflowEdges);
-
-  // Only sync from store to local state when store changes externally (from AI)
+  // Apply AI-generated workflows when they come from the store
   useEffect(() => {
-    setNodes(workflowNodes);
-    setEdges(workflowEdges);
-  }, [workflowNodes, workflowEdges, setNodes, setEdges]);
+    if (workflowNodes.length > 0 && JSON.stringify(workflowNodes) !== JSON.stringify(nodes)) {
+      // Rehydrate AI-generated nodes with proper onTextChange functions
+      const rehydratedNodes = workflowNodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          onTextChange: (nodeId: string, newText: string) => {
+            setNodes((nds) =>
+              nds.map((n) =>
+                n.id === nodeId
+                  ? { ...n, data: { ...n.data, text: newText } }
+                  : n
+              )
+            );
+          }
+        }
+      }));
+      
+      setNodes(rehydratedNodes);
+      setEdges(workflowEdges);
+      
+      // Reset viewport to prevent off-center issues
+      setTimeout(() => {
+        // Reset the viewport to default position and zoom
+        const reactFlowInstance = document.querySelector('.react-flow__viewport');
+        if (reactFlowInstance) {
+          (reactFlowInstance as HTMLElement).style.transform = 'translate(0px, 0px) scale(1)';
+        }
+      }, 100);
+    }
+  }, [workflowNodes, workflowEdges]);
 
   const onConnect = useCallback(
-    (params: Connection) => {
-      const newEdges = addEdge({
-        ...params,
-        animated: true,
-        style: { stroke: '#3b82f6', strokeWidth: 2 },
-        markerEnd: {
-          type: 'arrowclosed',
-          color: '#3b82f6',
-        }
-      }, edges);
-      setEdges(newEdges);
-      updateWorkflow(nodes, newEdges);
-    },
-    [setEdges, edges, nodes, updateWorkflow]
+    (params: Connection) => setEdges((eds) => addEdge({
+      ...params,
+      animated: true,
+      style: { stroke: '#3b82f6', strokeWidth: 2 },
+      markerEnd: {
+        type: 'arrowclosed',
+        color: '#3b82f6',
+      }
+    }, eds)),
+    [setEdges]
   );
 
   const getNextNodeNumber = useCallback(() => {
@@ -76,27 +98,25 @@ export function WorkflowInterface() {
       id: `text-${Date.now()}`,
       type: 'textPrompt',
       position: { 
-        x: Math.random() * 300 + 50, 
-        y: Math.random() * 300 + 50 
+        x: 150 + Math.random() * 300, 
+        y: 150 + Math.random() * 200 
       },
       data: { 
         text: '',
         nodeNumber: getNextNodeNumber(),
         onTextChange: (nodeId: string, newText: string) => {
-          const updatedNodes = nodes.map((node) =>
-            node.id === nodeId
-              ? { ...node, data: { ...node.data, text: newText } }
-              : node
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === nodeId
+                ? { ...node, data: { ...node.data, text: newText } }
+                : node
+            )
           );
-          setNodes(updatedNodes);
-          updateWorkflow(updatedNodes, edges);
         }
       },
     };
-    const newNodes = [...nodes, newNode];
-    setNodes(newNodes);
-    updateWorkflow(newNodes, edges);
-  }, [setNodes, getNextNodeNumber, nodes, edges, updateWorkflow]);
+    setNodes((nds) => nds.concat(newNode));
+  }, [setNodes, getNextNodeNumber]);
 
   const generatePromptFromNodes = useCallback(() => {
     const nodeMap = new Map(nodes.map(node => [node.id, node]));
@@ -259,7 +279,7 @@ Please check your workflow nodes and try again.`,
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative overflow-hidden">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -267,8 +287,10 @@ Please check your workflow nodes and try again.`,
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           nodeTypes={nodeTypes}
-          fitView
           className="bg-gray-50"
+          defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+          minZoom={0.5}
+          maxZoom={2}
           defaultEdgeOptions={{
             animated: true,
             style: { stroke: '#3b82f6', strokeWidth: 2 },
@@ -312,4 +334,8 @@ Please check your workflow nodes and try again.`,
       </div>
     </div>
   );
+}
+
+export function WorkflowInterface() {
+  return <WorkflowInterfaceInner />;
 }

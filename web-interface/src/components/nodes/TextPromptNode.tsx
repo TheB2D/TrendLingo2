@@ -63,7 +63,7 @@ export function TextPromptNode({ id, data, selected }: NodeProps<TextPromptNodeD
 
   return (
     <div className={`
-      bg-white rounded-lg border-2 shadow-lg min-w-[250px] max-w-[400px]
+      bg-white rounded-lg border-2 shadow-lg w-[300px] max-w-[300px] min-w-[300px]
       ${selected ? 'border-blue-500 shadow-blue-200' : 'border-gray-200'}
       transition-all duration-200 hover:shadow-xl
     `}>
@@ -107,7 +107,7 @@ export function TextPromptNode({ id, data, selected }: NodeProps<TextPromptNodeD
               onChange={handleTextareaChange}
               onKeyDown={handleKeyPress}
               placeholder="Enter your prompt text here..."
-              className="w-full p-2 text-sm border border-gray-200 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full max-w-full p-2 text-sm border border-gray-200 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent break-words"
               style={{ minHeight: '60px' }}
             />
             <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export function TextPromptNode({ id, data, selected }: NodeProps<TextPromptNodeD
         ) : (
           <div className="min-h-[60px]">
             {localText ? (
-              <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+              <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words overflow-hidden">
                 {localText}
               </div>
             ) : (
