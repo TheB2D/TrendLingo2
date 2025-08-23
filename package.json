@@ -1,0 +1,24 @@
+{
+  "name": "trendlingo2",
+  "version": "1.0.0",
+  "main": "basic-example.js",
+  "type": "module",
+  "scripts": {
+    "start": "node basic-example.js",
+    "structured": "node structured-output-example.js",
+    "streaming": "node streaming-example.js",
+    "webhook": "node webhook-example.js",
+    "live-view": "node live-browser-view-example.js",
+    "session-info": "node session-info-example.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "browser-use-sdk": "^1.2.0",
+    "dotenv": "^17.2.1",
+    "zod": "^4.1.0"
+  }
+}
