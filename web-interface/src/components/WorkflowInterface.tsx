@@ -18,6 +18,7 @@ import { Plus, Play, Bot, Settings } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { getBrowserService } from '@/lib/browser-use-service';
 import { TextPromptNode } from './nodes/TextPromptNode';
+import { detectNodeStrands, generatePromptFromStrand } from '@/lib/workflow-utils';
 
 const nodeTypes = {
   textPrompt: TextPromptNode,
@@ -38,7 +39,11 @@ function WorkflowInterfaceInner() {
     updateSession,
     workflowNodes,
     workflowEdges,
-    updateWorkflow
+    updateWorkflow,
+    setCurrentStrands,
+    setStrandSession,
+    updateStrandSession,
+    setShowMultipleBrowsers
   } = useAppStore();
 
   // Apply AI-generated workflows when they come from the store
@@ -152,9 +157,20 @@ function WorkflowInterfaceInner() {
   }, [nodes, edges]);
 
   const runWorkflow = useCallback(async () => {
-    const prompt = generatePromptFromNodes();
+    // Detect strands in current workflow
+    const strands = detectNodeStrands(nodes, edges);
     
-    if (!prompt.trim()) {
+    if (strands.length === 0) {
+      alert('Please add some nodes to your workflow before running.');
+      return;
+    }
+
+    // Check if any strand has text
+    const strandsWithText = strands.filter(strand => 
+      generatePromptFromStrand(strand, edges).trim().length > 0
+    );
+    
+    if (strandsWithText.length === 0) {
       alert('Please add some text to your nodes before running the workflow.');
       return;
     }
@@ -163,71 +179,96 @@ function WorkflowInterfaceInner() {
     setLoading(true);
 
     try {
+      // Update current strands in store
+      setCurrentStrands(strands);
+      
+      // Show multiple browser view if we have multiple strands
+      if (strands.length > 1) {
+        setShowMultipleBrowsers(true);
+      }
+
       // Add workflow message
       addMessage({
         role: 'user',
-        content: `🔄 **Workflow Executed**\n\n${prompt}`,
+        content: `🔄 **Multi-Strand Workflow Executed**\n\n**Detected ${strands.length} strand${strands.length !== 1 ? 's' : ''}:**\n${strands.map((strand, i) => `${i + 1}. ${strand.id}: ${generatePromptFromStrand(strand, edges).substring(0, 100)}...`).join('\n')}`,
       });
 
       // Add assistant thinking message
       addMessage({
         role: 'assistant',
-        content: '🤖 Creating browser automation from workflow...',
+        content: `🤖 Creating ${strands.length} browser automation instance${strands.length !== 1 ? 's' : ''} from workflow strands...`,
       });
 
-      // Create browser task
-      const { session, task } = await browserService.createTaskAndGetSession(prompt);
-      
-      setCurrentSession(session);
-      addSession(session);
+      // Create sessions for each strand
+      const sessionPromises = strandsWithText.map(async (strand) => {
+        const prompt = generatePromptFromStrand(strand, edges);
+        const { session, task } = await browserService.createTaskAndGetSession(prompt);
+        
+        // Store strand session
+        setStrandSession(strand.id, session);
+        addSession(session);
 
-      // Start streaming the task progress
-      setTimeout(async () => {
-        try {
-          await browserService.streamTaskProgress(task.id, (streamData) => {
-            console.log('Workflow stream data received:', streamData);
-            
-            if (streamData.data && streamData.data.steps) {
-              const updatedTasks = session.tasks ? [...session.tasks] : [task];
-              const taskIndex = updatedTasks.findIndex(t => t.id === task.id);
+        // Start streaming for this strand
+        setTimeout(async () => {
+          try {
+            await browserService.streamTaskProgress(task.id, (streamData) => {
+              console.log(`Strand ${strand.id} stream data:`, streamData);
               
-              if (taskIndex !== -1) {
-                updatedTasks[taskIndex] = {
-                  ...updatedTasks[taskIndex],
-                  steps: streamData.data.steps,
-                  status: streamData.data.status || updatedTasks[taskIndex].status
-                };
+              if (streamData.data && streamData.data.steps) {
+                const updatedTasks = session.tasks ? [...session.tasks] : [task];
+                const taskIndex = updatedTasks.findIndex(t => t.id === task.id);
+                
+                if (taskIndex !== -1) {
+                  updatedTasks[taskIndex] = {
+                    ...updatedTasks[taskIndex],
+                    steps: streamData.data.steps,
+                    status: streamData.data.status || updatedTasks[taskIndex].status
+                  };
+                }
+                
+                updateStrandSession(strand.id, { tasks: updatedTasks });
               }
-              
-              updateSession(session.id, { tasks: updatedTasks });
-            }
-          });
-        } catch (error) {
-          console.error('Workflow streaming failed:', error);
-        }
-      }, 1000);
+            });
+          } catch (error) {
+            console.error(`Strand ${strand.id} streaming failed:`, error);
+          }
+        }, 1000);
 
-      // Update assistant message with session info
+        return { strand, session, task };
+      });
+
+      const results = await Promise.all(sessionPromises);
+
+      // Set the first session as current for compatibility
+      if (results.length > 0) {
+        setCurrentSession(results[0].session);
+      }
+
+      // Update assistant message with results
       addMessage({
         role: 'assistant',
-        content: `✅ Workflow automation started!
+        content: `✅ Multi-strand workflow automation started!
 
-**Generated Prompt:** ${prompt}
-**Session ID:** ${session.id.slice(0, 8)}...
-**Status:** ${session.status}
+**Created ${results.length} browser instance${results.length !== 1 ? 's' : ''}:**
+${results.map(({ strand, session }, i) => `
+${i + 1}. **${strand.id}**
+   - Session: ${session.id.slice(0, 8)}...
+   - Status: ${session.status}
+   - Prompt: ${generatePromptFromStrand(strand, edges).substring(0, 80)}...
+`).join('')}
 
-${session.liveUrl 
-  ? `🔴 **Live View Available** - You can watch the automation in real-time!` 
-  : 'Live view will be available once the session starts.'
+${results.length > 1 
+  ? `🔴 **Multiple Live Views Available** - Switch to grid view to see all instances!` 
+  : '🔴 **Live View Available** - You can watch the automation in real-time!'
 }`,
-        sessionId: session.id,
-        taskId: task.id,
+        sessionId: results[0]?.session.id,
+        taskId: results[0]?.task.id,
       });
 
     } catch (error) {
       addMessage({
         role: 'assistant',
-        content: `❌ Failed to execute workflow automation. 
+        content: `❌ Failed to execute multi-strand workflow automation. 
 
 Error: ${error instanceof Error ? error.message : 'Unknown error'}
 
@@ -237,7 +278,7 @@ Please check your workflow nodes and try again.`,
       setIsRunning(false);
       setLoading(false);
     }
-  }, [generatePromptFromNodes, addMessage, setLoading, setCurrentSession, addSession]);
+  }, [nodes, edges, addMessage, setLoading, setCurrentSession, addSession, setCurrentStrands, setStrandSession, updateStrandSession, setShowMultipleBrowsers]);
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">

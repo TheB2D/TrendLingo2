@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { ChatMessage, BrowserSession } from '@/types/browser-use';
 import { Node, Edge } from 'reactflow';
+import { NodeStrand } from './workflow-utils';
+
+interface StrandSession {
+  strandId: string;
+  session: BrowserSession | null;
+  isActive: boolean;
+}
 
 interface AppState {
   // Chat state
@@ -10,6 +17,11 @@ interface AppState {
   // Browser session state
   currentSession: BrowserSession | null;
   activeSessions: BrowserSession[];
+  
+  // Multi-strand session state
+  strandSessions: StrandSession[];
+  currentStrands: NodeStrand[];
+  showMultipleBrowsers: boolean;
   
   // Workflow state
   workflowNodes: Node[];
@@ -36,6 +48,13 @@ interface AppState {
   setWorkflowNodes: (nodes: Node[]) => void;
   setWorkflowEdges: (edges: Edge[]) => void;
   updateWorkflow: (nodes: Node[], edges: Edge[]) => void;
+  
+  // Multi-strand actions
+  setCurrentStrands: (strands: NodeStrand[]) => void;
+  setStrandSession: (strandId: string, session: BrowserSession | null) => void;
+  updateStrandSession: (strandId: string, updates: Partial<BrowserSession>) => void;
+  toggleMultipleBrowsers: () => void;
+  setShowMultipleBrowsers: (show: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -43,6 +62,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   isLoading: false,
   currentSession: null,
   activeSessions: [],
+  strandSessions: [],
+  currentStrands: [],
+  showMultipleBrowsers: false,
   workflowNodes: [],
   workflowEdges: [],
   showLiveBrowser: false,
@@ -131,4 +153,42 @@ export const useAppStore = create<AppState>((set, get) => ({
     workflowNodes: nodes, 
     workflowEdges: edges 
   }),
+  
+  // Multi-strand implementations
+  setCurrentStrands: (strands) => set({ currentStrands: strands }),
+  
+  setStrandSession: (strandId, session) => {
+    set((state) => ({
+      strandSessions: [
+        ...state.strandSessions.filter(s => s.strandId !== strandId),
+        { strandId, session, isActive: session !== null }
+      ]
+    }));
+  },
+  
+  updateStrandSession: (strandId, updates) => {
+    set((state) => ({
+      strandSessions: state.strandSessions.map(strandSession =>
+        strandSession.strandId === strandId && strandSession.session
+          ? {
+              ...strandSession,
+              session: { ...strandSession.session, ...updates }
+            }
+          : strandSession
+      ),
+      // Also update activeSessions if this session exists there
+      activeSessions: state.activeSessions.map(session => {
+        const strandSession = state.strandSessions.find(s => s.strandId === strandId);
+        return strandSession?.session?.id === session.id 
+          ? { ...session, ...updates } 
+          : session;
+      })
+    }));
+  },
+  
+  toggleMultipleBrowsers: () => set((state) => ({ 
+    showMultipleBrowsers: !state.showMultipleBrowsers 
+  })),
+  
+  setShowMultipleBrowsers: (show) => set({ showMultipleBrowsers: show }),
 }));

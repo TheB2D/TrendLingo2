@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ChatInterface } from './ChatInterface';
 import { LiveBrowserView } from './LiveBrowserView';
+import { MultipleBrowserView } from './MultipleBrowserView';
 import { WorkflowInterface } from './WorkflowInterface';
 import { AgentThoughts } from './AgentThoughts';
 import { DebugSteps } from './DebugSteps';
@@ -17,7 +18,8 @@ import {
   Bot,
   GitBranch,
   Brain,
-  Sparkles
+  Sparkles,
+  Grid
 } from 'lucide-react';
 
 export function Layout() {
@@ -39,7 +41,10 @@ export function Layout() {
     clearChat,
     messages,
     isWorkflowMode,
-    toggleWorkflowMode
+    toggleWorkflowMode,
+    showMultipleBrowsers,
+    toggleMultipleBrowsers,
+    currentStrands
   } = useAppStore();
 
   const handleClearChat = () => {
@@ -320,6 +325,23 @@ User request: ${userInput}`;
                     {showReasoning ? 'Hide' : 'Show'} Reasoning
                   </span>
                 </button>
+
+                {currentStrands.length > 1 && (
+                  <button
+                    onClick={toggleMultipleBrowsers}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      showMultipleBrowsers 
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <Grid className="w-4 h-4" />
+                    <span className="hidden sm:inline">
+                      {showMultipleBrowsers ? 'Grid' : 'Multi'} View ({currentStrands.length})
+                    </span>
+                  </button>
+                )}
+
                 <button
                   onClick={toggleLiveBrowser}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -429,7 +451,9 @@ User request: ${userInput}`;
 
         {/* Right Panel */}
         <div className="flex-1 min-h-full min-w-0">
-          {showLiveBrowser ? (
+          {showMultipleBrowsers ? (
+            <MultipleBrowserView />
+          ) : showLiveBrowser ? (
             <LiveBrowserView />
           ) : (
             <div className="h-full flex items-center justify-center bg-gray-50">
