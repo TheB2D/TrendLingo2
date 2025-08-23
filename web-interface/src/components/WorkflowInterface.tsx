@@ -35,7 +35,8 @@ export function WorkflowInterface() {
     addMessage, 
     setLoading, 
     setCurrentSession, 
-    addSession 
+    addSession,
+    updateSession 
   } = useAppStore();
 
   const onConnect = useCallback(
@@ -134,16 +135,19 @@ export function WorkflowInterface() {
             console.log('Workflow stream data received:', streamData);
             
             if (streamData.data && streamData.data.steps) {
-              const updatedSession = {
-                ...session,
-                tasks: [{
-                  ...task,
+              const updatedTasks = session.tasks ? [...session.tasks] : [task];
+              const taskIndex = updatedTasks.findIndex(t => t.id === task.id);
+              
+              if (taskIndex !== -1) {
+                updatedTasks[taskIndex] = {
+                  ...updatedTasks[taskIndex],
                   steps: streamData.data.steps,
-                  status: streamData.data.status || task.status
-                }]
-              };
-              setCurrentSession(updatedSession);
-              addSession(updatedSession);
+                  status: streamData.data.status || updatedTasks[taskIndex].status
+                };
+              }
+              
+              updateSession(session.id, { tasks: updatedTasks });
+              addSession({ ...session, tasks: updatedTasks });
             }
           });
         } catch (error) {

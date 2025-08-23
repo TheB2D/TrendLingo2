@@ -18,6 +18,7 @@ export function ChatInterface() {
     setLoading,
     setCurrentSession,
     addSession,
+    updateSession,
   } = useAppStore();
 
   const scrollToBottom = () => {
@@ -64,16 +65,19 @@ export function ChatInterface() {
             
             // Update session with new step data if available
             if (streamData.data && streamData.data.steps) {
-              const updatedSession = {
-                ...session,
-                tasks: [{
-                  ...task,
+              const updatedTasks = session.tasks ? [...session.tasks] : [task];
+              const taskIndex = updatedTasks.findIndex(t => t.id === task.id);
+              
+              if (taskIndex !== -1) {
+                updatedTasks[taskIndex] = {
+                  ...updatedTasks[taskIndex],
                   steps: streamData.data.steps,
-                  status: streamData.data.status || task.status
-                }]
-              };
-              setCurrentSession(updatedSession);
-              addSession(updatedSession);
+                  status: streamData.data.status || updatedTasks[taskIndex].status
+                };
+              }
+              
+              updateSession(session.id, { tasks: updatedTasks });
+              addSession({ ...session, tasks: updatedTasks });
             }
           });
         } catch (error) {
