@@ -208,9 +208,9 @@ export function LiveBrowserView() {
                 <div className="animate-pulse">
                   <Monitor className="w-16 h-16 mx-auto text-gray-400 mb-4" />
                 </div>
-                <p className="text-gray-600 font-medium">Starting browser session...</p>
+                <p className="text-gray-600 font-medium">Loading browser view...</p>
                 <p className="text-sm text-gray-500 mt-2">
-                  Live view will appear once the session is active
+                  Session {currentSession.id.slice(0, 8)}... is processing your workflow
                 </p>
                 <div className="mt-4">
                   <div className="animate-spin w-6 h-6 border-2 border-gray-300 border-t-blue-500 rounded-full mx-auto"></div>

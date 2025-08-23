@@ -13,6 +13,7 @@ interface AppState {
   // UI state
   showLiveBrowser: boolean;
   selectedSessionId: string | null;
+  isWorkflowMode: boolean;
   
   // Actions
   addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
@@ -25,6 +26,8 @@ interface AppState {
   selectSession: (sessionId: string | null) => void;
   clearChat: () => void;
   clearMessages: () => void;
+  toggleWorkflowMode: () => void;
+  setWorkflowMode: (mode: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -34,6 +37,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeSessions: [],
   showLiveBrowser: false,
   selectedSessionId: null,
+  isWorkflowMode: false,
 
   addMessage: (message) => {
     const newMessage: ChatMessage = {
@@ -102,4 +106,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   }),
 
   clearMessages: () => set({ messages: [] }),
+  
+  toggleWorkflowMode: () => set((state) => ({ 
+    isWorkflowMode: !state.isWorkflowMode 
+  })),
+  
+  setWorkflowMode: (mode) => set({ isWorkflowMode: mode }),
 }));

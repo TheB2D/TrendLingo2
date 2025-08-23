@@ -50,9 +50,7 @@ export class BrowserUseService {
   ): Promise<void> {
     try {
       console.log('Starting stream for task:', taskId);
-      const stream = this.client.tasks.stream({
-        taskId: taskId,
-      });
+      const stream = this.client.tasks.stream(taskId);
       
       for await (const chunk of stream) {
         console.log('Stream chunk received:', chunk);

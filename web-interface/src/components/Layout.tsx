@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChatInterface } from './ChatInterface';
 import { LiveBrowserView } from './LiveBrowserView';
+import { WorkflowInterface } from './WorkflowInterface';
 import { useAppStore } from '@/lib/store';
 import { 
   Monitor, 
@@ -10,7 +11,8 @@ import {
   Settings, 
   History, 
   Trash2,
-  Bot
+  Bot,
+  GitBranch
 } from 'lucide-react';
 
 export function Layout() {
@@ -20,7 +22,9 @@ export function Layout() {
     toggleLiveBrowser, 
     currentSession, 
     clearChat,
-    messages 
+    messages,
+    isWorkflowMode,
+    toggleWorkflowMode
   } = useAppStore();
 
   const handleClearChat = () => {
@@ -49,7 +53,21 @@ export function Layout() {
           </div>
           
           <div className="flex items-center gap-2">
-            {messages.length > 0 && (
+            <button
+              onClick={toggleWorkflowMode}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isWorkflowMode 
+                  ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <GitBranch className="w-4 h-4" />
+              <span className="hidden sm:inline">
+                {isWorkflowMode ? 'Workflow' : 'Chat'}
+              </span>
+            </button>
+            
+            {messages.length > 0 && !isWorkflowMode && (
               <button
                 onClick={handleClearChat}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -86,7 +104,7 @@ export function Layout() {
           className="flex-shrink-0 border-r border-gray-200 min-h-full"
           style={{ width: `${leftPanelWidth}px` }}
         >
-          <ChatInterface />
+          {isWorkflowMode ? <WorkflowInterface /> : <ChatInterface />}
         </div>
 
         {/* Resizer */}
