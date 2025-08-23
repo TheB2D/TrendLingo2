@@ -1,6 +1,6 @@
-# Browser Use Cloud API - Node.js Setup
+# BrowSee - Browser Use Cloud API
 
-This project demonstrates how to use the Browser Use Cloud API with Node.js following the quickstart guide.
+This project demonstrates how to use the Browser Use Cloud API with Node.js for the BrowSee browser automation platform.
 
 ## Setup
 

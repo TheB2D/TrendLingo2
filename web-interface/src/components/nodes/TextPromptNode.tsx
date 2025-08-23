@@ -2,15 +2,16 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { Type, X, GripVertical } from 'lucide-react';
+import { Type, Edit3 } from 'lucide-react';
 
 interface TextPromptNodeData {
   text: string;
+  nodeNumber: number;
   onTextChange: (nodeId: string, newText: string) => void;
 }
 
 export function TextPromptNode({ id, data, selected }: NodeProps<TextPromptNodeData>) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(!data.text); // Auto-edit if no text
   const [localText, setLocalText] = useState(data.text || '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -24,22 +25,30 @@ export function TextPromptNode({ id, data, selected }: NodeProps<TextPromptNodeD
       // Auto-resize textarea
       const textarea = textareaRef.current;
       textarea.style.height = 'auto';
-      textarea.style.height = textarea.scrollHeight + 'px';
+      textarea.style.height = Math.max(60, textarea.scrollHeight) + 'px';
     }
   }, [isEditing]);
 
   const handleSave = () => {
-    data.onTextChange(id, localText);
+    if (localText.trim()) {
+      data.onTextChange(id, localText.trim());
+      setIsEditing(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setLocalText(data.text || '');
     setIsEditing(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && e.ctrlKey) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
       handleSave();
     }
     if (e.key === 'Escape') {
-      setLocalText(data.text || '');
-      setIsEditing(false);
+      e.preventDefault();
+      handleCancel();
     }
   };
 
@@ -49,39 +58,49 @@ export function TextPromptNode({ id, data, selected }: NodeProps<TextPromptNodeD
     
     // Auto-resize
     e.target.style.height = 'auto';
-    e.target.style.height = e.target.scrollHeight + 'px';
+    e.target.style.height = Math.max(60, e.target.scrollHeight) + 'px';
   };
 
   return (
     <div className={`
-      bg-white rounded-lg border-2 shadow-lg min-w-[200px] max-w-[300px] 
+      bg-white rounded-lg border-2 shadow-lg min-w-[250px] max-w-[400px]
       ${selected ? 'border-blue-500 shadow-blue-200' : 'border-gray-200'}
       transition-all duration-200 hover:shadow-xl
     `}>
-      {/* Handle for incoming connections */}
+      {/* Handles */}
       <Handle
         type="target"
         position={Position.Left}
-        className="w-3 h-3 !bg-blue-500 border-2 border-white"
-        style={{ left: -6 }}
+        className="w-5 h-5 !bg-blue-500 border-3 border-white shadow-lg hover:!bg-blue-600 transition-all duration-200"
+        style={{ left: -10 }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="w-5 h-5 !bg-green-500 border-3 border-white shadow-lg hover:!bg-green-600 transition-all duration-200"
+        style={{ right: -10 }}
       />
 
       {/* Node Header */}
       <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-lg border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
           <Type className="w-4 h-4 text-blue-600" />
-          <span className="text-sm font-medium text-gray-700">Text Prompt</span>
+          <span className="text-sm font-medium text-gray-700">Prompt #{data.nodeNumber}</span>
         </div>
-        <div className="text-xs text-gray-500">
-          {localText.length} chars
-        </div>
+        {!isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="p-1 text-gray-400 hover:text-gray-600 rounded"
+          >
+            <Edit3 className="w-3 h-3" />
+          </button>
+        )}
       </div>
 
       {/* Node Content */}
       <div className="p-3">
         {isEditing ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <textarea
               ref={textareaRef}
               value={localText}
@@ -89,60 +108,38 @@ export function TextPromptNode({ id, data, selected }: NodeProps<TextPromptNodeD
               onKeyDown={handleKeyPress}
               placeholder="Enter your prompt text here..."
               className="w-full p-2 text-sm border border-gray-200 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              rows={3}
               style={{ minHeight: '60px' }}
             />
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleSave}
-                className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                disabled={!localText.trim()}
+                className="px-3 py-1.5 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 Save
               </button>
               <button
-                onClick={() => {
-                  setLocalText(data.text || '');
-                  setIsEditing(false);
-                }}
-                className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                onClick={handleCancel}
+                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
               >
                 Cancel
               </button>
-              <div className="ml-auto text-gray-500">
-                Ctrl+Enter to save • Esc to cancel
-              </div>
             </div>
           </div>
         ) : (
-          <div
-            onClick={() => setIsEditing(true)}
-            className="min-h-[60px] p-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded cursor-text hover:bg-gray-100 transition-colors"
-          >
-            {localText || (
-              <span className="text-gray-400 italic">
+          <div className="min-h-[60px]">
+            {localText ? (
+              <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                {localText}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-400 italic">
                 Click to add prompt text...
-              </span>
+              </div>
             )}
           </div>
         )}
       </div>
-
-      {/* Node Footer */}
-      {localText && (
-        <div className="px-3 pb-3">
-          <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
-            💡 This text will be part of the generated prompt
-          </div>
-        </div>
-      )}
-
-      {/* Handle for outgoing connections */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="w-3 h-3 !bg-green-500 border-2 border-white"
-        style={{ right: -6 }}
-      />
     </div>
   );
 }

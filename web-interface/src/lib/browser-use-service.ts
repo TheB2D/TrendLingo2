@@ -54,6 +54,10 @@ export class BrowserUseService {
       
       for await (const chunk of stream) {
         console.log('Stream chunk received:', chunk);
+        console.log('Chunk data:', chunk.data);
+        console.log('Chunk data steps:', chunk.data?.steps);
+        console.log('Chunk data steps type:', typeof chunk.data?.steps);
+        console.log('Chunk data steps array check:', Array.isArray(chunk.data?.steps));
         onProgress(chunk);
         
         // Stop streaming when task is finished

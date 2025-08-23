@@ -64,9 +64,18 @@ export function ChatInterface() {
             console.log('Stream data received:', streamData);
             
             // Update session with new step data if available
+            console.log('Processing stream data for steps update:', streamData.data);
+            console.log('Does streamData.data exist?', !!streamData.data);
+            console.log('Does streamData.data.steps exist?', !!streamData.data?.steps);
+            console.log('streamData.data.steps value:', streamData.data?.steps);
+            console.log('streamData.data.steps is array?', Array.isArray(streamData.data?.steps));
+            
             if (streamData.data && streamData.data.steps) {
               const updatedTasks = session.tasks ? [...session.tasks] : [task];
               const taskIndex = updatedTasks.findIndex(t => t.id === task.id);
+              
+              console.log('Found task at index:', taskIndex);
+              console.log('Updating task with steps:', streamData.data.steps);
               
               if (taskIndex !== -1) {
                 updatedTasks[taskIndex] = {
@@ -76,8 +85,8 @@ export function ChatInterface() {
                 };
               }
               
+              console.log('About to update session with updatedTasks:', updatedTasks);
               updateSession(session.id, { tasks: updatedTasks });
-              addSession({ ...session, tasks: updatedTasks });
             }
           });
         } catch (error) {
@@ -133,7 +142,7 @@ Please check your API key configuration and try again.`,
       {/* Header */}
       <div className="p-4 border-b border-gray-200 bg-gray-50">
         <h2 className="text-lg font-semibold text-gray-800">
-          AI Browser Assistant
+          BrowSee Assistant
         </h2>
         <p className="text-sm text-gray-600">
           Tell me what you want to automate in your browser
@@ -145,7 +154,7 @@ Please check your API key configuration and try again.`,
         {messages.length === 0 && (
           <div className="text-center text-gray-500 py-8">
             <Bot className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-            <p className="text-lg font-medium mb-2">Welcome to AI Browser Automation</p>
+            <p className="text-lg font-medium mb-2">Welcome to BrowSee</p>
             <p className="text-sm mb-4">
               Start by describing what you want to automate. For example:
             </p>

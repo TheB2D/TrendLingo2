@@ -1,5 +1,5 @@
 {
-  "name": "trendlingo2",
+  "name": "browsee",
   "version": "1.0.0",
   "main": "basic-example.js",
   "type": "module",
@@ -15,7 +15,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "BrowSee - AI Browser Automation Platform",
   "dependencies": {
     "browser-use-sdk": "^1.2.0",
     "dotenv": "^17.2.1",

@@ -48,7 +48,7 @@ export function Layout() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-800">
-                AI Browser Automation
+                BrowSee
               </h1>
               <p className="text-sm text-gray-600">
                 Automate web tasks with natural language
@@ -120,8 +120,12 @@ export function Layout() {
       <div className="flex-1 flex min-h-0">
         {/* Left Panel */}
         <div 
-          className="flex-shrink-0 border-r border-gray-200 min-h-full"
-          style={{ width: `${leftPanelWidth}px` }}
+          className="flex-shrink-0 border-r border-gray-200 min-h-full overflow-hidden"
+          style={{ 
+            width: `${leftPanelWidth}px`,
+            minWidth: `${leftPanelWidth}px`,
+            maxWidth: `${leftPanelWidth}px`
+          }}
         >
           {showReasoning && currentSession ? (
             <div className="h-full flex flex-col bg-white">
@@ -160,20 +164,35 @@ export function Layout() {
 
         {/* Resizer */}
         <div 
-          className="w-1 bg-gray-200 hover:bg-gray-300 cursor-col-resize flex-shrink-0 relative group"
+          className="w-1 bg-gray-200 hover:bg-gray-300 cursor-col-resize flex-shrink-0 relative group select-none"
+          style={{ zIndex: 10 }}
           onMouseDown={(e) => {
             e.preventDefault();
+            e.stopPropagation();
+            
             const startX = e.clientX;
             const startWidth = leftPanelWidth;
+            
+            // Add a class to prevent text selection during resize
+            document.body.classList.add('select-none');
+            document.body.style.cursor = 'col-resize';
 
             const handleMouseMove = (e: MouseEvent) => {
-              const newWidth = startWidth + (e.clientX - startX);
-              setLeftPanelWidth(Math.max(320, Math.min(800, newWidth)));
+              e.preventDefault();
+              const deltaX = e.clientX - startX;
+              const newWidth = startWidth + deltaX;
+              const clampedWidth = Math.max(280, Math.min(1000, newWidth));
+              setLeftPanelWidth(clampedWidth);
             };
 
-            const handleMouseUp = () => {
+            const handleMouseUp = (e: MouseEvent) => {
+              e.preventDefault();
               document.removeEventListener('mousemove', handleMouseMove);
               document.removeEventListener('mouseup', handleMouseUp);
+              
+              // Remove the cursor and selection styles
+              document.body.classList.remove('select-none');
+              document.body.style.cursor = '';
             };
 
             document.addEventListener('mousemove', handleMouseMove);
@@ -192,7 +211,7 @@ export function Layout() {
               <div className="text-center max-w-md mx-auto p-8">
                 <MessageSquare className="w-20 h-20 mx-auto text-gray-400 mb-6" />
                 <h3 className="text-xl font-medium text-gray-800 mb-3">
-                  Welcome to AI Browser Automation
+                  Welcome to BrowSee
                 </h3>
                 <p className="text-gray-600 mb-6 leading-relaxed">
                   Start a conversation in the chat panel to create browser automation tasks. 

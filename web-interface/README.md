@@ -1,4 +1,4 @@
-# AI Browser Automation Web Interface
+# BrowSee - AI Browser Automation Web Interface
 
 A modern web application that provides a chat-based interface for browser automation using the browser-use SDK.
 

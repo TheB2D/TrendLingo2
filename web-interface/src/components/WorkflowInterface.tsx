@@ -40,17 +40,34 @@ export function WorkflowInterface() {
   } = useAppStore();
 
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
+    (params: Connection) => setEdges((eds) => addEdge({
+      ...params,
+      animated: true,
+      style: { stroke: '#3b82f6', strokeWidth: 2 },
+      markerEnd: {
+        type: 'arrowclosed',
+        color: '#3b82f6',
+      }
+    }, eds)),
     [setEdges]
   );
+
+  const getNextNodeNumber = useCallback(() => {
+    const textNodes = nodes.filter(node => node.type === 'textPrompt');
+    return textNodes.length + 1;
+  }, [nodes]);
 
   const addTextNode = useCallback(() => {
     const newNode: Node = {
       id: `text-${Date.now()}`,
       type: 'textPrompt',
-      position: { x: Math.random() * 400, y: Math.random() * 400 },
+      position: { 
+        x: Math.random() * 300 + 50, 
+        y: Math.random() * 300 + 50 
+      },
       data: { 
         text: '',
+        nodeNumber: getNextNodeNumber(),
         onTextChange: (nodeId: string, newText: string) => {
           setNodes((nds) =>
             nds.map((node) =>
@@ -63,7 +80,7 @@ export function WorkflowInterface() {
       },
     };
     setNodes((nds) => nds.concat(newNode));
-  }, [setNodes]);
+  }, [setNodes, getNextNodeNumber]);
 
   const generatePromptFromNodes = useCallback(() => {
     const nodeMap = new Map(nodes.map(node => [node.id, node]));
@@ -147,7 +164,6 @@ export function WorkflowInterface() {
               }
               
               updateSession(session.id, { tasks: updatedTasks });
-              addSession({ ...session, tasks: updatedTasks });
             }
           });
         } catch (error) {
@@ -237,6 +253,11 @@ Please check your workflow nodes and try again.`,
           nodeTypes={nodeTypes}
           fitView
           className="bg-gray-50"
+          defaultEdgeOptions={{
+            animated: true,
+            style: { stroke: '#3b82f6', strokeWidth: 2 },
+            markerEnd: { type: 'arrowclosed', color: '#3b82f6' }
+          }}
         >
           <Controls position="top-left" />
           <MiniMap 
