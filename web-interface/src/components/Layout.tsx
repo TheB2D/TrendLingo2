@@ -7,6 +7,7 @@ import { WorkflowInterface } from './WorkflowInterface';
 import { AgentThoughts } from './AgentThoughts';
 import { DebugSteps } from './DebugSteps';
 import { useAppStore } from '@/lib/store';
+import { GoogleGenAI } from '@google/genai';
 import { 
   Monitor, 
   MessageSquare, 
@@ -15,12 +16,17 @@ import {
   Trash2,
   Bot,
   GitBranch,
-  Brain
+  Brain,
+  Sparkles
 } from 'lucide-react';
 
 export function Layout() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(420);
   const [showReasoning, setShowReasoning] = useState(false);
+  const [showAIPrompt, setShowAIPrompt] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [isAILoading, setIsAILoading] = useState(false);
   const { 
     showLiveBrowser, 
     toggleLiveBrowser, 
@@ -34,6 +40,34 @@ export function Layout() {
   const handleClearChat = () => {
     if (window.confirm('Are you sure you want to clear the chat?')) {
       clearChat();
+    }
+  };
+
+  const handleAIPrompt = async () => {
+    if (!aiPrompt.trim()) return;
+    
+    setIsAILoading(true);
+    try {
+      const ai = new GoogleGenAI({
+        apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY
+      });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: aiPrompt,
+        config: {
+          thinkingConfig: {
+            thinkingBudget: 0,
+          },
+        }
+      });
+      
+      setAiResponse(response.text);
+    } catch (error) {
+      console.error('Error calling Gemini API:', error);
+      setAiResponse('Error: Failed to get response from Gemini AI');
+    } finally {
+      setIsAILoading(false);
     }
   };
 
@@ -82,6 +116,21 @@ export function Layout() {
               </button>
             )}
             
+            <button
+              onClick={() => setShowAIPrompt(true)}
+              className="relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 transform hover:scale-105 shadow-lg hover:shadow-xl"
+              style={{
+                background: 'linear-gradient(45deg, #8b5cf6, #ec4899, #f97316)',
+                boxShadow: '0 0 20px rgba(139, 92, 246, 0.3), 0 0 40px rgba(236, 72, 153, 0.2), 0 0 60px rgba(249, 115, 22, 0.1)'
+              }}
+            >
+              <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 opacity-75 blur-sm"></div>
+              <div className="relative flex items-center gap-2">
+                <Sparkles className="w-4 h-4 animate-pulse" />
+                <span className="hidden sm:inline font-semibold">AI Mode</span>
+              </div>
+            </button>
+
             {currentSession && (
               <>
                 <button
@@ -274,6 +323,93 @@ export function Layout() {
                 View Recording
               </a>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Prompt Modal */}
+      {showAIPrompt && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50" 
+          style={{ 
+            backgroundColor: 'rgba(0, 0, 0, 0.15)',
+            backdropFilter: 'blur(4px)'
+          }}
+        >
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-600" />
+                AI Mode - Ask Gemini
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAIPrompt(false);
+                  setAiPrompt('');
+                  setAiResponse('');
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Your prompt:
+                </label>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="Ask Gemini anything..."
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  rows={4}
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAIPrompt}
+                  disabled={!aiPrompt.trim() || isAILoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  {isAILoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Thinking...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Ask Gemini
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowAIPrompt(false);
+                    setAiPrompt('');
+                    setAiResponse('');
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+              
+              {aiResponse && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Gemini's response:
+                  </label>
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg max-h-64 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-800">{aiResponse}</pre>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
