@@ -107,7 +107,7 @@ export function TextPromptNode({ id, data, selected }: NodeProps<TextPromptNodeD
               onChange={handleTextareaChange}
               onKeyDown={handleKeyPress}
               placeholder="Enter your prompt text here..."
-              className="w-full max-w-full p-2 text-sm border border-gray-200 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent break-words"
+              className="w-full max-w-full p-2 text-sm border border-gray-200 rounded resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent break-words text-gray-900"
               style={{ minHeight: '60px' }}
             />
             <div className="flex items-center gap-2">

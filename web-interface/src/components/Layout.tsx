@@ -21,12 +21,12 @@ import {
 } from 'lucide-react';
 
 export function Layout() {
-  const [leftPanelWidth, setLeftPanelWidth] = useState(420);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(640);
   const [showReasoning, setShowReasoning] = useState(false);
 
-  // Set to fixed width to prevent layout issues
+  // Initialize to 50/50 split after hydration
   useEffect(() => {
-    setLeftPanelWidth(480); // Fixed width instead of dynamic
+    setLeftPanelWidth(Math.floor(window.innerWidth / 2));
   }, []);
   const [showAIPrompt, setShowAIPrompt] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -557,7 +557,7 @@ User request: ${userInput}`;
                       ? "Describe the workflow you want to create or modify... (e.g., 'Create a workflow to search for products on Amazon and compare prices' or 'Add a step to take a screenshot')"
                       : "Ask Gemini anything..."
                   }
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-gray-900"
                   rows={4}
                 />
               </div>
