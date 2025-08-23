@@ -49,15 +49,16 @@ A modern web application that provides a chat-based interface for browser automa
 - The right panel will display the live browser view
 - Click the external link icon to open in a new window
 
-### Agent Thoughts (Real-time AI Reasoning)
+### Agent Reasoning (Real-time AI Analysis)
 
-- **Toggle Agent Thoughts**: Click the brain icon 🧠 in the live browser header
-- **Real-time Streaming**: See the agent's thoughts update as it works:
+- **Show Agent Reasoning**: Click the brain icon 🧠 in the main header
+- **Real-time Streaming**: See the agent's reasoning update as it works:
   - 👁️ **Observations**: What the agent sees on the page
   - ✅ **Evaluations**: How it assesses its previous actions
   - 🎯 **Next Goals**: What it plans to do next
   - ⚡ **Actions**: Specific commands it will execute
 - **Step-by-Step Breakdown**: Each automation step shows detailed reasoning
+- **Left Panel View**: Agent reasoning appears in the left panel alongside the browser view
 - **Screenshots**: Visual confirmation of each step (when available)
 
 ### Session Management

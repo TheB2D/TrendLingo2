@@ -3,18 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getBrowserService } from '@/lib/browser-use-service';
-import { AgentThoughts } from './AgentThoughts';
-import { DebugSteps } from './DebugSteps';
-import { ExternalLink, RefreshCw, Monitor, Clock, CheckCircle, XCircle, Brain } from 'lucide-react';
+import { ExternalLink, RefreshCw, Monitor, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 const browserService = getBrowserService();
 
 export function LiveBrowserView() {
   const { currentSession, showLiveBrowser, updateSession } = useAppStore();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [agentSteps, setAgentSteps] = useState<any[]>([]);
-  const [showAgentThoughts, setShowAgentThoughts] = useState(true);
-  const [rightPanelWidth, setRightPanelWidth] = useState(300);
+
 
   const refreshSession = async () => {
     if (!currentSession?.id) return;
@@ -25,20 +21,7 @@ export function LiveBrowserView() {
       if (updatedSession) {
         updateSession(currentSession.id, updatedSession);
         
-        // Update agent steps if tasks have steps
-        if (updatedSession.tasks && updatedSession.tasks.length > 0) {
-          const latestTask = updatedSession.tasks[updatedSession.tasks.length - 1];
-          console.log('Latest task:', latestTask);
-          console.log('Latest task steps:', latestTask.steps);
-          if (latestTask.steps) {
-            console.log('Updating agent steps:', latestTask.steps.length);
-            setAgentSteps(latestTask.steps);
-          } else {
-            console.log('No steps found in latest task');
-          }
-        } else {
-          console.log('No tasks found in session');
-        }
+
       }
     } catch (error) {
       console.error('Failed to refresh session:', error);
@@ -54,23 +37,7 @@ export function LiveBrowserView() {
     }
   }, [currentSession?.id, currentSession?.status]);
 
-  // Update agent steps when session changes
-  useEffect(() => {
-    console.log('Session changed effect triggered');
-    console.log('Current session:', currentSession);
-    if (currentSession?.tasks && currentSession.tasks.length > 0) {
-      const latestTask = currentSession.tasks[currentSession.tasks.length - 1];
-      console.log('Latest task from effect:', latestTask);
-      if (latestTask.steps) {
-        console.log('Setting agent steps from effect:', latestTask.steps.length);
-        setAgentSteps(latestTask.steps);
-      } else {
-        console.log('No steps in latest task from effect');
-      }
-    } else {
-      console.log('No tasks in current session from effect');
-    }
-  }, [currentSession]);
+
 
   if (!showLiveBrowser || !currentSession) {
     return (
@@ -127,20 +94,7 @@ export function LiveBrowserView() {
               {getStatusIcon(currentSession.status)}
               {currentSession.status}
             </div>
-            <button
-              onClick={() => setShowAgentThoughts(!showAgentThoughts)}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                showAgentThoughts 
-                  ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-              title="Toggle agent thoughts"
-            >
-              <div className="flex items-center gap-1">
-                <Brain className="w-3 h-3" />
-                <span className="hidden sm:inline">Thoughts</span>
-              </div>
-            </button>
+
             <button
               onClick={refreshSession}
               disabled={isRefreshing}
@@ -194,7 +148,7 @@ export function LiveBrowserView() {
       {/* Main Content Area */}
       <div className="flex-1 flex min-h-0 relative">
         {/* Browser View */}
-        <div className={showAgentThoughts ? `flex-1 border-r border-gray-200` : 'flex-1'}>
+        <div className="flex-1">
           {currentSession.liveUrl ? (
             <iframe
               src={currentSession.liveUrl}
@@ -219,48 +173,6 @@ export function LiveBrowserView() {
             </div>
           )}
         </div>
-
-        {/* Agent Thoughts Panel */}
-        {showAgentThoughts && (
-          <>
-            {/* Resizer */}
-            <div 
-              className="w-1 bg-gray-200 hover:bg-gray-300 cursor-col-resize flex-shrink-0 relative group"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const startX = e.clientX;
-                const startWidth = rightPanelWidth;
-
-                const handleMouseMove = (e: MouseEvent) => {
-                  const newWidth = startWidth - (e.clientX - startX);
-                  setRightPanelWidth(Math.max(250, Math.min(500, newWidth)));
-                };
-
-                const handleMouseUp = () => {
-                  document.removeEventListener('mousemove', handleMouseMove);
-                  document.removeEventListener('mouseup', handleMouseUp);
-                };
-
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
-              }}
-            >
-              <div className="absolute inset-y-0 left-0 w-1 bg-purple-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-
-            {/* Agent Thoughts Panel */}
-            <div 
-              className="bg-white overflow-y-auto"
-              style={{ width: `${rightPanelWidth}px` }}
-            >
-              <DebugSteps />
-              <AgentThoughts 
-                steps={agentSteps} 
-                isActive={currentSession.status === 'active'} 
-              />
-            </div>
-          </>
-        )}
       </div>
 
       {/* Task List */}

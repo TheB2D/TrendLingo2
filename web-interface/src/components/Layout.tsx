@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { ChatInterface } from './ChatInterface';
 import { LiveBrowserView } from './LiveBrowserView';
 import { WorkflowInterface } from './WorkflowInterface';
+import { AgentThoughts } from './AgentThoughts';
+import { DebugSteps } from './DebugSteps';
 import { useAppStore } from '@/lib/store';
 import { 
   Monitor, 
@@ -12,11 +14,13 @@ import {
   History, 
   Trash2,
   Bot,
-  GitBranch
+  GitBranch,
+  Brain
 } from 'lucide-react';
 
 export function Layout() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(420);
+  const [showReasoning, setShowReasoning] = useState(false);
   const { 
     showLiveBrowser, 
     toggleLiveBrowser, 
@@ -79,19 +83,34 @@ export function Layout() {
             )}
             
             {currentSession && (
-              <button
-                onClick={toggleLiveBrowser}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  showLiveBrowser 
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Monitor className="w-4 h-4" />
-                <span className="hidden sm:inline">
-                  {showLiveBrowser ? 'Hide' : 'Show'} Live Browser
-                </span>
-              </button>
+              <>
+                <button
+                  onClick={() => setShowReasoning(!showReasoning)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    showReasoning 
+                      ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Brain className="w-4 h-4" />
+                  <span className="hidden sm:inline">
+                    {showReasoning ? 'Hide' : 'Show'} Reasoning
+                  </span>
+                </button>
+                <button
+                  onClick={toggleLiveBrowser}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    showLiveBrowser 
+                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Monitor className="w-4 h-4" />
+                  <span className="hidden sm:inline">
+                    {showLiveBrowser ? 'Hide' : 'Show'} Live Browser
+                  </span>
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -99,12 +118,44 @@ export function Layout() {
 
       {/* Main Content */}
       <div className="flex-1 flex min-h-0">
-        {/* Chat Panel */}
+        {/* Left Panel */}
         <div 
           className="flex-shrink-0 border-r border-gray-200 min-h-full"
           style={{ width: `${leftPanelWidth}px` }}
         >
-          {isWorkflowMode ? <WorkflowInterface /> : <ChatInterface />}
+          {showReasoning && currentSession ? (
+            <div className="h-full flex flex-col bg-white">
+              {/* Reasoning Header */}
+              <div className="p-4 border-b border-gray-200 bg-purple-50">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <Brain className="w-5 h-5 text-purple-600" />
+                    Agent Reasoning & Thoughts
+                  </h3>
+                  <button
+                    onClick={() => setShowReasoning(false)}
+                    className="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Back to Chat
+                  </button>
+                </div>
+                <p className="text-sm text-gray-600 mt-1">
+                  Real-time analysis of the agent's decision-making process
+                </p>
+              </div>
+              
+              {/* Reasoning Content */}
+              <div className="flex-1 overflow-y-auto">
+                <DebugSteps />
+                <AgentThoughts 
+                  steps={currentSession.tasks?.[currentSession.tasks.length - 1]?.steps || []} 
+                  isActive={currentSession.status === 'active'} 
+                />
+              </div>
+            </div>
+          ) : (
+            isWorkflowMode ? <WorkflowInterface /> : <ChatInterface />
+          )}
         </div>
 
         {/* Resizer */}

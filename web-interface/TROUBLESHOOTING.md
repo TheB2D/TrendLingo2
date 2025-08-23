@@ -9,10 +9,10 @@ After sending a message like "go to ny times and search up chicken":
 2. **Click it** if it's not already active (blue background)
 3. The right panel should appear with the browser view
 
-### Step 2: Check if Agent Thoughts Toggle is Available
-In the live browser view header, look for:
-- **Brain icon 🧠** next to the refresh and external link icons
-- **Click the brain icon** to toggle agent thoughts on/off
+### Step 2: Check if Agent Reasoning Toggle is Available
+In the main header, look for:
+- **Brain icon 🧠** next to the workflow/chat toggle and live browser buttons
+- **Click the brain icon** to show agent reasoning in the left panel
 
 ### Step 3: Check Browser Console
 Open browser dev tools (F12) and look for:
@@ -47,7 +47,7 @@ Try this exact sequence:
 ### Issue: Brain icon missing
 **Solution**: The live browser view isn't loading properly. Check browser console for errors.
 
-### Issue: Agent thoughts panel empty
+### Issue: Agent reasoning view empty
 **Solution**: Steps data isn't being received. Check the debug panel for session data.
 
 ### Issue: Nothing happening after clicking brain icon
