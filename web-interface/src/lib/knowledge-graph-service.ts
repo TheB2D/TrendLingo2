@@ -25,6 +25,16 @@ export class KnowledgeGraphService {
   private static instance: KnowledgeGraphService;
   private tfidf: any;
   private processedFragments: Map<string, ProcessedFragment> = new Map();
+  private stepBasedQueue: Map<number, Array<{
+    sessionId: string;
+    fragment: any;
+    stepNumber: number;
+    timestamp: number;
+    agentStep: AgentStep;
+  }>> = new Map();
+  private stepProcessingTimers: Map<number, NodeJS.Timeout> = new Map();
+  private readonly STEP_COLLECTION_DELAY = 8000; // Wait 8 seconds for all sessions to complete a step
+  private readonly MAX_SESSIONS_PER_STEP = 10; // Maximum sessions to wait for
 
   private constructor() {
     if (typeof window === 'undefined' && natural) {
@@ -60,29 +70,266 @@ export class KnowledgeGraphService {
     taskId: string
   ): Promise<void> {
     try {
-      console.log(`Processing ${steps.length} agent steps for knowledge graph`);
+      console.log(`Processing ${steps.length} agent steps for knowledge graph (step-based pooling)`);
       
-      const fragments: ProcessedFragment[] = [];
-
-      // Extract reasoning fragments from each step
+      // Group steps by step number and queue for step-based processing
       for (const step of steps) {
-        const stepFragments = await this.extractFragmentsFromStep(step, sessionId, taskId);
-        fragments.push(...stepFragments);
+        const stepNumber = step.stepNumber || 1;
+        await this.queueStepForPooledProcessing(step, sessionId, taskId, stepNumber);
       }
-
-      // Process each fragment with LLM analysis
-      for (const fragment of fragments) {
-        await this.processFragment(fragment);
-      }
-
-      // Find and create relationships between fragments
-      await this.createFragmentRelationships(fragments);
-
-      console.log(`Processed ${fragments.length} reasoning fragments`);
+      
+      console.log(`Queued ${steps.length} steps for pooled processing`);
     } catch (error) {
       console.error('Failed to process agent steps:', error);
       // Don't throw - continue with partial processing
     }
+  }
+
+  private async queueStepForPooledProcessing(
+    agentStep: AgentStep, 
+    sessionId: string, 
+    taskId: string, 
+    stepNumber: number
+  ): Promise<void> {
+    // Extract fragments from this step
+    const fragments = await this.extractFragmentsFromStep(agentStep, sessionId, taskId);
+    
+    // Add to step-based queue
+    if (!this.stepBasedQueue.has(stepNumber)) {
+      this.stepBasedQueue.set(stepNumber, []);
+    }
+    
+    for (const fragment of fragments) {
+      this.stepBasedQueue.get(stepNumber)!.push({
+        sessionId,
+        fragment,
+        stepNumber,
+        timestamp: Date.now(),
+        agentStep
+      });
+    }
+    
+    // Clear existing timer for this step
+    if (this.stepProcessingTimers.has(stepNumber)) {
+      clearTimeout(this.stepProcessingTimers.get(stepNumber)!);
+    }
+    
+    // Set timer to process this step after delay (allows other sessions to contribute)
+    this.stepProcessingTimers.set(stepNumber, setTimeout(() => {
+      this.processStepPool(stepNumber);
+    }, this.STEP_COLLECTION_DELAY));
+    
+    // If we have enough sessions, process immediately
+    const queuedItems = this.stepBasedQueue.get(stepNumber)!;
+    const uniqueSessions = new Set(queuedItems.map(item => item.sessionId));
+    
+    if (uniqueSessions.size >= this.MAX_SESSIONS_PER_STEP) {
+      clearTimeout(this.stepProcessingTimers.get(stepNumber)!);
+      this.processStepPool(stepNumber);
+    }
+  }
+
+  private async processStepPool(stepNumber: number): Promise<void> {
+    console.log(`Processing pooled reasoning for step ${stepNumber}`);
+    
+    const queuedItems = this.stepBasedQueue.get(stepNumber);
+    if (!queuedItems || queuedItems.length === 0) {
+      return;
+    }
+
+    try {
+      // Group by session for organized processing
+      const sessionGroups = new Map<string, Array<any>>();
+      for (const item of queuedItems) {
+        if (!sessionGroups.has(item.sessionId)) {
+          sessionGroups.set(item.sessionId, []);
+        }
+        sessionGroups.get(item.sessionId)!.push(item.fragment);
+      }
+
+      console.log(`Step ${stepNumber}: Processing ${queuedItems.length} fragments from ${sessionGroups.size} sessions`);
+
+      // Create a single mega-prompt for all fragments from this step
+      await this.processStepFragmentsBatch(Array.from(queuedItems), stepNumber);
+
+      // Create cross-session relationships for this step
+      const allFragments = queuedItems.map(item => item.fragment);
+      if (allFragments.length > 1) {
+        await this.createFragmentRelationships(allFragments);
+      }
+
+      console.log(`Completed pooled processing for step ${stepNumber}`);
+    } catch (error) {
+      console.error(`Error processing step pool ${stepNumber}:`, error);
+    } finally {
+      // Clean up
+      this.stepBasedQueue.delete(stepNumber);
+      this.stepProcessingTimers.delete(stepNumber);
+    }
+  }
+
+  private async processStepFragmentsBatch(queuedItems: Array<any>, stepNumber: number): Promise<void> {
+    console.log(`Batch processing ${queuedItems.length} fragments for step ${stepNumber}`);
+    
+    // Group fragments by session for organized LLM input
+    const sessionData = new Map<string, Array<any>>();
+    for (const item of queuedItems) {
+      if (!sessionData.has(item.sessionId)) {
+        sessionData.set(item.sessionId, []);
+      }
+      sessionData.get(item.sessionId)!.push(item.fragment);
+    }
+
+    // Create a single comprehensive prompt for all sessions in this step
+    const megaPrompt = this.buildMegaPromptForStep(sessionData, stepNumber);
+    
+    try {
+      // Single LLM call for all fragments in this step
+      const analyses = await this.analyzeMegaBatch(megaPrompt, queuedItems);
+      
+      // Process and store each fragment with its analysis
+      for (let i = 0; i < queuedItems.length; i++) {
+        const item = queuedItems[i];
+        const analysis = analyses[i] || this.createFallbackAnalysis(item.fragment);
+        
+        // Apply analysis to fragment
+        item.fragment.concepts = analysis.concepts || [];
+        item.fragment.semanticVector = this.generateSemanticVector(item.fragment.text);
+        
+        // Store in Neo4j
+        await this.storeFragmentInNeo4j(item.fragment);
+      }
+      
+      console.log(`Successfully processed ${queuedItems.length} fragments in step ${stepNumber} with single LLM call`);
+    } catch (error) {
+      console.error(`Failed mega-batch processing for step ${stepNumber}:`, error);
+      
+      // Fallback: process without LLM
+      for (const item of queuedItems) {
+        const fallbackAnalysis = this.createFallbackAnalysis(item.fragment);
+        item.fragment.concepts = fallbackAnalysis.concepts || [];
+        item.fragment.semanticVector = this.generateSemanticVector(item.fragment.text);
+        await this.storeFragmentInNeo4j(item.fragment);
+      }
+    }
+  }
+
+  private buildMegaPromptForStep(sessionData: Map<string, Array<any>>, stepNumber: number): string {
+    const sessionCount = sessionData.size;
+    const totalFragments = Array.from(sessionData.values()).reduce((sum, fragments) => sum + fragments.length, 0);
+    
+    let prompt = `
+CROSS-SESSION REASONING ANALYSIS - STEP ${stepNumber}
+Analyzing reasoning from ${sessionCount} parallel browser automation sessions (${totalFragments} total fragments).
+Extract concepts, entities, and insights that span across sessions.
+
+`;
+
+    let fragmentIndex = 0;
+    for (const [sessionId, fragments] of sessionData) {
+      prompt += `\n=== SESSION: ${sessionId} ===\n`;
+      
+      for (const fragment of fragments) {
+        prompt += `
+FRAGMENT ${fragmentIndex + 1} (Session: ${sessionId}):
+Type: ${fragment.type}
+Text: "${fragment.text}"
+Step: ${fragment.stepNumber}
+`;
+        fragmentIndex++;
+      }
+    }
+
+    prompt += `
+
+Please provide analysis for ALL ${totalFragments} fragments in this JSON format:
+{
+  "analyses": [
+    {
+      "fragmentIndex": 0,
+      "concepts": ["concept1", "concept2", ...],
+      "entities": ["entity1", "entity2", ...],
+      "summary": "Brief summary",
+      "keyInsights": ["insight1", "insight2", ...]
+    }
+  ],
+  "crossSessionInsights": [
+    "Insight about patterns across sessions",
+    "Common themes or divergent approaches"
+  ]
+}
+
+Focus on:
+- Key concepts and entities (websites, actions, goals)
+- Cross-session patterns and similarities
+- Divergent reasoning approaches
+- Common obstacles and solutions
+
+Respond with valid JSON only. Include analysis for all ${totalFragments} fragments.`;
+
+    return prompt;
+  }
+
+  private async analyzeMegaBatch(prompt: string, queuedItems: Array<any>): Promise<Array<any>> {
+    // Use the LLM service but with a custom mega-prompt
+    try {
+      const mockFragment = {
+        text: prompt,
+        type: 'mega_batch' as any,
+        stepNumber: queuedItems[0]?.stepNumber || 1
+      };
+      
+      // This will go through the batching system but as a single large request
+      const result = await llmService.analyzeReasoningFragment(mockFragment);
+      
+      // Parse the result to extract individual analyses
+      if (result && (result as any).analyses) {
+        return (result as any).analyses;
+      } else {
+        // Fallback parsing
+        return queuedItems.map(() => ({ concepts: [], entities: [], summary: '', keyInsights: [] }));
+      }
+    } catch (error) {
+      console.error('Mega-batch analysis failed:', error);
+      return queuedItems.map(() => ({ concepts: [], entities: [], summary: '', keyInsights: [] }));
+    }
+  }
+
+  private async storeFragmentInNeo4j(fragment: ProcessedFragment): Promise<void> {
+    try {
+      await neo4jService.createReasonFragment({
+        id: fragment.id,
+        text: fragment.text,
+        type: fragment.type,
+        sessionId: fragment.sessionId,
+        taskId: fragment.taskId,
+        stepNumber: fragment.stepNumber,
+        timestamp: fragment.timestamp,
+        url: fragment.url,
+        concepts: fragment.concepts,
+        semanticVector: fragment.semanticVector
+      });
+      
+      console.log(`Stored fragment: ${fragment.id} with ${fragment.concepts.length} concepts`);
+    } catch (error) {
+      console.error(`Failed to store fragment ${fragment.id}:`, error);
+    }
+  }
+
+  private createFallbackAnalysis(fragment: any): any {
+    // Simple keyword extraction as fallback
+    const words = fragment.text.toLowerCase().split(/\s+/);
+    const concepts = words.filter((word: string) => 
+      word.length > 3 && 
+      !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'].includes(word)
+    ).slice(0, 5);
+
+    return {
+      concepts,
+      entities: [],
+      summary: fragment.text.substring(0, 100) + '...',
+      keyInsights: [`${fragment.type} step focusing on: ${concepts.join(', ')}`]
+    };
   }
 
   private async extractFragmentsFromStep(

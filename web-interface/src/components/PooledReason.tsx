@@ -16,8 +16,8 @@ import {
   RotateCcw
 } from 'lucide-react';
 
-// Dynamically import ForceGraph2D to avoid SSR issues
-const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
+// Dynamically import ForceGraph3D to avoid SSR issues
+const ForceGraph3D = dynamic(() => import('react-force-graph-3d'), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center h-full">
@@ -66,7 +66,9 @@ export function PooledReason() {
   const [error, setError] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNode | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const forceRef = useRef<any>();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const nodeColors = {
     ReasonFragment: {
@@ -152,6 +154,38 @@ export function PooledReason() {
     return () => clearInterval(interval);
   }, [loadKnowledgeGraph]);
 
+  // Handle container resizing
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const { offsetWidth, offsetHeight } = containerRef.current;
+        if (offsetWidth > 0 && offsetHeight > 0) {
+          setDimensions({ width: offsetWidth, height: offsetHeight });
+        }
+      }
+    };
+
+    // Small delay to ensure the container is properly rendered
+    const timeout = setTimeout(updateDimensions, 100);
+    
+    window.addEventListener('resize', updateDimensions);
+    
+    // Use ResizeObserver if available for more accurate container resize detection
+    let resizeObserver: ResizeObserver | null = null;
+    if (containerRef.current && window.ResizeObserver) {
+      resizeObserver = new ResizeObserver(updateDimensions);
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('resize', updateDimensions);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
+  }, []);
+
 
 
   const getFilteredData = (): GraphData => {
@@ -182,10 +216,21 @@ export function PooledReason() {
   const handleNodeClick = (node: any) => {
     setSelectedNode(node);
     
-    // Focus on the node
+    // Focus on the node in 3D
     if (forceRef.current) {
-      forceRef.current.centerAt(node.x, node.y, 1000);
-      forceRef.current.zoom(2, 1000);
+      // Aim at node from outside it
+      const distance = 40;
+      const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
+
+      const newPos = node.x || node.y || node.z
+        ? { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio }
+        : { x: 0, y: 0, z: distance }; // special case if node is in (0,0,0)
+
+      forceRef.current.cameraPosition(
+        newPos, // new position
+        node, // lookAt ({ x, y, z })
+        3000  // ms transition duration
+      );
     }
   };
 
@@ -287,7 +332,11 @@ export function PooledReason() {
       </div>
 
       {/* Graph Container */}
-      <div className="flex-1 relative">
+      <div 
+        ref={containerRef}
+        className="flex-1 relative overflow-hidden"
+        style={{ minHeight: '400px' }}
+      >
         {filteredData.nodes.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <Network className="w-16 h-16 mb-4 opacity-50" />
@@ -296,44 +345,52 @@ export function PooledReason() {
               Run some browser automation tasks to populate the knowledge graph with reasoning traces.
             </p>
           </div>
+        ) : dimensions.width > 0 && dimensions.height > 0 ? (
+          <div className="w-full h-full">
+            <ForceGraph3D
+              ref={forceRef}
+              graphData={filteredData}
+              nodeLabel={(node: any) => `
+                <div style="background: white; padding: 8px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); max-width: 300px;">
+                  <div style="font-weight: bold; color: #374151; margin-bottom: 4px;">
+                    ${node.type === 'Concept' ? 'Concept' : node.properties.nodeType || node.type}
+                  </div>
+                  <div style="color: #6B7280; font-size: 12px; line-height: 1.4;">
+                    ${node.label}
+                  </div>
+                  ${node.properties.stepNumber ? `<div style="color: #9CA3AF; font-size: 11px; margin-top: 4px;">Step ${node.properties.stepNumber}</div>` : ''}
+                </div>
+              `}
+              linkLabel={(link: any) => `
+                <div style="background: white; padding: 6px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                  <div style="font-weight: bold; color: #374151; font-size: 12px;">
+                    ${link.type}
+                  </div>
+                  ${link.properties.strength ? `<div style="color: #6B7280; font-size: 11px;">Strength: ${(link.properties.strength * 100).toFixed(0)}%</div>` : ''}
+                </div>
+              `}
+              nodeColor={(node: any) => node.color}
+              nodeVal={(node: any) => node.size}
+              linkColor={(link: any) => link.color}
+              linkWidth={(link: any) => link.width}
+              onNodeClick={handleNodeClick}
+              linkDirectionalArrowLength={4}
+              linkDirectionalArrowRelPos={1}
+              enableNavigationControls={true}
+              enableNodeDrag={true}
+              cooldownTime={5000}
+              d3AlphaDecay={0.02}
+              d3VelocityDecay={0.3}
+              backgroundColor="rgba(0,0,0,0.05)"
+              showNavInfo={false}
+              width={dimensions.width}
+              height={dimensions.height}
+            />
+          </div>
         ) : (
-          <ForceGraph2D
-            ref={forceRef}
-            graphData={filteredData}
-            nodeLabel={(node: any) => `
-              <div style="background: white; padding: 8px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); max-width: 300px;">
-                <div style="font-weight: bold; color: #374151; margin-bottom: 4px;">
-                  ${node.type === 'Concept' ? 'Concept' : node.properties.nodeType || node.type}
-                </div>
-                <div style="color: #6B7280; font-size: 12px; line-height: 1.4;">
-                  ${node.label}
-                </div>
-                ${node.properties.stepNumber ? `<div style="color: #9CA3AF; font-size: 11px; margin-top: 4px;">Step ${node.properties.stepNumber}</div>` : ''}
-              </div>
-            `}
-            linkLabel={(link: any) => `
-              <div style="background: white; padding: 6px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
-                <div style="font-weight: bold; color: #374151; font-size: 12px;">
-                  ${link.type}
-                </div>
-                ${link.properties.strength ? `<div style="color: #6B7280; font-size: 11px;">Strength: ${(link.properties.strength * 100).toFixed(0)}%</div>` : ''}
-              </div>
-            `}
-            nodeColor={(node: any) => node.color}
-            nodeVal={(node: any) => node.size}
-            linkColor={(link: any) => link.color}
-            linkWidth={(link: any) => link.width}
-            onNodeClick={handleNodeClick}
-            linkDirectionalArrowLength={4}
-            linkDirectionalArrowRelPos={1}
-            enablePanInteraction={true}
-            enableZoomInteraction={true}
-            cooldownTime={5000}
-            d3AlphaDecay={0.02}
-            d3VelocityDecay={0.3}
-            width={undefined}
-            height={undefined}
-          />
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-spin w-8 h-8 border-2 border-gray-300 border-t-purple-500 rounded-full"></div>
+          </div>
         )}
 
         {/* Loading Overlay */}
